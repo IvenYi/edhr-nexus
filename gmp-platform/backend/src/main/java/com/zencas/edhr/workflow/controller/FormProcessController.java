@@ -14,10 +14,12 @@ import com.zencas.edhr.compliance.repository.AuditEventRepository;
 import com.zencas.edhr.common.exception.BusinessException;
 import com.zencas.edhr.common.exception.ErrorCode;
 import com.zencas.edhr.common.util.SnowflakeIdGenerator;
+import com.zencas.edhr.workflow.entity.WorkFormProcessReference;
 import com.zencas.edhr.workflow.entity.WorkflowDefinition;
 import com.zencas.edhr.workflow.entity.WorkflowDefinitionVersion;
 import com.zencas.edhr.workflow.repository.WorkflowDefinitionRepository;
 import com.zencas.edhr.workflow.repository.WorkflowDefinitionVersionRepository;
+import com.zencas.edhr.workflow.service.FormProcessReferenceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -46,6 +48,7 @@ public class FormProcessController {
 
     private final WorkflowDefinitionRepository definitionRepository;
     private final WorkflowDefinitionVersionRepository versionRepository;
+    private final FormProcessReferenceService formProcessReferenceService;
     private final SnowflakeIdGenerator idGenerator;
     private final AuditEventRepository auditEventRepository;
 
@@ -101,6 +104,9 @@ public class FormProcessController {
     @Transactional
     public ApiResponse<Void> delete(@PathVariable Long id) {
         WorkflowDefinition definition = findDefinition(id);
+        if (!formProcessReferenceService.listUsage(id).isEmpty()) {
+            throw new BusinessException(ErrorCode.WF_002, "该表单流程已被作业流程引用，不能删除");
+        }
         versionRepository.deleteAll(versionRepository.findByDefinitionIdOrderByVersionNumberDesc(id));
         definitionRepository.deleteById(id);
         recordAudit("PRODUCTION_FORM_PROCESS", id, "DELETE", definitionSnapshot(definition), Map.of());
@@ -117,6 +123,47 @@ public class FormProcessController {
     public ApiResponse<WorkflowDefinitionVersion> version(@PathVariable Long id, @PathVariable Long versionId) {
         findDefinition(id);
         return ApiResponse.success(findVersion(id, versionId));
+    }
+
+    @GetMapping("/{id}/usage")
+    public ApiResponse<List<FormProcessUsageItem>> usage(@PathVariable Long id) {
+        findDefinition(id);
+        List<WorkFormProcessReference> references = formProcessReferenceService.listUsage(id);
+        Set<Long> versionIds = new HashSet<>();
+        Set<Long> definitionIds = new HashSet<>();
+        references.forEach(reference -> {
+            versionIds.add(reference.getWorkVersionId());
+            versionIds.add(reference.getFormProcessVersionId());
+            definitionIds.add(reference.getWorkDefinitionId());
+            definitionIds.add(reference.getFormProcessDefinitionId());
+        });
+        Map<Long, WorkflowDefinitionVersion> versionsById = versionRepository.findAllById(versionIds).stream()
+                .collect(java.util.stream.Collectors.toMap(WorkflowDefinitionVersion::getId, item -> item));
+        Map<Long, WorkflowDefinition> definitionsById = definitionRepository.findAllById(definitionIds).stream()
+                .collect(java.util.stream.Collectors.toMap(WorkflowDefinition::getId, item -> item));
+        List<FormProcessUsageItem> items = references.stream().map(reference -> {
+            WorkflowDefinitionVersion workVersion = versionsById.get(reference.getWorkVersionId());
+            WorkflowDefinitionVersion processVersion = versionsById.get(reference.getFormProcessVersionId());
+            WorkflowDefinition workDefinition = definitionsById.get(reference.getWorkDefinitionId());
+            return new FormProcessUsageItem(
+                    reference.getId(),
+                    reference.getFormProcessVersionId(),
+                    processVersion == null ? null : processVersion.getVersionNumber(),
+                    processVersion == null ? null : processVersion.getIsCurrent(),
+                    reference.getWorkDefinitionId(),
+                    workDefinition == null ? null : workDefinition.getName(),
+                    workDefinition == null ? null : workDefinition.getCode(),
+                    reference.getWorkVersionId(),
+                    workVersion == null ? null : workVersion.getVersionNumber(),
+                    workVersion == null ? null : workVersion.getStatus(),
+                    workVersion == null ? null : workVersion.getIsCurrent(),
+                    reference.getWorkNodeId(),
+                    reference.getWorkNodeLabel(),
+                    reference.getFormTemplateVersionId(),
+                    reference.getFormTemplateName(),
+                    reference.getUpdatedAt());
+        }).toList();
+        return ApiResponse.success(items);
     }
 
     @PostMapping("/{id}/versions")
@@ -280,7 +327,15 @@ public class FormProcessController {
         if (config == null || config.isMissingNode() || config.isNull()) return;
         if (!config.isObject()) throw new BusinessException(ErrorCode.WF_002, "权限配置格式不正确");
         validatePermissionValue(config.path("defaultPermission"));
-        if (!entryNode) return;
+        if (!entryNode) {
+            // An empty approval subject list intentionally means unrestricted approval.
+            // Only validate the shape when a caller actually supplies the optional list.
+            JsonNode subjects = config.get("approverSubjects");
+            if (subjects != null && !subjects.isNull() && !subjects.isArray()) {
+                throw new BusinessException(ErrorCode.WF_002, "审批主体配置格式不正确");
+            }
+            return;
+        }
         JsonNode rules = config.get("permissionGroupRules");
         if (rules == null || rules.isNull()) return;
         if (!rules.isArray()) throw new BusinessException(ErrorCode.WF_002, "填报权限组配置格式不正确");
@@ -456,4 +511,23 @@ public class FormProcessController {
             @JsonSerialize(using = ToStringSerializer.class) Long id,
             String name, String code, String description, LocalDateTime updatedAt,
             Integer currentVersionNumber, Integer draftVersionNumber, Integer versionCount) { }
+
+    public record FormProcessUsageItem(
+            @JsonSerialize(using = ToStringSerializer.class) Long referenceId,
+            @JsonSerialize(using = ToStringSerializer.class) Long formProcessVersionId,
+            Integer formProcessVersionNumber,
+            Boolean formProcessVersionIsCurrent,
+            @JsonSerialize(using = ToStringSerializer.class) Long workDefinitionId,
+            String workDefinitionName,
+            String workDefinitionCode,
+            @JsonSerialize(using = ToStringSerializer.class) Long workVersionId,
+            Integer workVersionNumber,
+            String workVersionStatus,
+            Boolean workVersionIsCurrent,
+            String workNodeId,
+            String workNodeLabel,
+            @JsonSerialize(using = ToStringSerializer.class) Long formTemplateVersionId,
+            String formTemplateName,
+            LocalDateTime updatedAt) {
+    }
 }

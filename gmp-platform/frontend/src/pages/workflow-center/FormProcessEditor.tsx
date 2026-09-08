@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -111,6 +117,7 @@ type NodeData = {
   editable?: boolean;
   selected?: boolean;
   quickMenuDirection?: FlowDirection | null;
+  quickDirections?: FlowDirection[];
   canUseQuickAction?: boolean;
   onOpenQuickMenu?: (direction: FlowDirection) => void;
   onQuickAdd?: (direction: FlowDirection) => void;
@@ -249,12 +256,15 @@ function serializeNodesForSave(currentNodes: FlowNode[]) {
 }
 
 function FormProcessNode({ id, data }: NodeProps<FlowNode>) {
-  const directions: FlowDirection[] =
+  const handleDirections: FlowDirection[] =
     data.kind === "START"
       ? ["bottom"]
       : data.kind === "APPROVAL"
         ? ["top", "right", "bottom", "left"]
         : [];
+  const arrowDirections: FlowDirection[] =
+    data.quickDirections ??
+    handleDirections;
   return (
     <StandardFlowNode
       id={id}
@@ -274,7 +284,8 @@ function FormProcessNode({ id, data }: NodeProps<FlowNode>) {
       end={data.kind === "END"}
       editable={Boolean(data.editable)}
       selected={Boolean(data.selected)}
-      quickDirections={directions}
+      quickDirections={handleDirections}
+      quickArrowDirections={arrowDirections}
       quickMenuDirection={data.quickMenuDirection}
       quickActions={[
         {
@@ -458,6 +469,7 @@ export default function FormProcessEditor() {
   const [selectedVersionId, setSelectedVersionId] =
     useState<FormProcessId | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedPanelTab, setSelectedPanelTab] = useState<"property" | "buttons">("property");
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -479,6 +491,11 @@ export default function FormProcessEditor() {
   edgesRef.current = edges;
   const undoRef = useRef<Graph[]>([]);
   const redoRef = useRef<Graph[]>([]);
+  const skipGraphResetRef = useRef<{
+    id: string;
+    nodesJson?: string | null;
+    edgesJson?: string | null;
+  } | null>(null);
   const dragRef = useRef<Graph | null>(null);
   const initialVersionAttempted = useRef(false);
   const [history, setHistory] = useState({ undo: 0, redo: 0 });
@@ -535,9 +552,28 @@ export default function FormProcessEditor() {
   }, [versions.isSuccess, versions.data, processId, queryClient, showMessage]);
   useEffect(() => {
     if (!selectedVersion) return;
-    setNodes(parse<FlowNode[]>(selectedVersion.nodesJson, initialNodes));
+    const skipReset = skipGraphResetRef.current;
+    if (skipReset) {
+      skipGraphResetRef.current = null;
+      if (
+        String(skipReset.id) === String(selectedVersion.id) &&
+        skipReset.nodesJson === selectedVersion.nodesJson &&
+        skipReset.edgesJson === selectedVersion.edgesJson
+      )
+        return;
+    }
+    const loadedNodes = parse<FlowNode[]>(
+      selectedVersion.nodesJson,
+      initialNodes,
+    );
+    setNodes(loadedNodes);
     setEdges(parse<Edge[]>(selectedVersion.edgesJson, []));
-    setSelectedNodeId("start");
+    // 版本数据刷新时保持仍存在的选中节点，保存草稿不打断当前配置。
+    setSelectedNodeId((current) =>
+      current && loadedNodes.some((node) => node.id === current)
+        ? current
+        : "start",
+    );
     setDirty(false);
     undoRef.current = [];
     redoRef.current = [];
@@ -642,11 +678,16 @@ export default function FormProcessEditor() {
     if (source)
       next.edges = addEdge(
         {
-          id: `${source.id}-${id}`,
-          source: source.id,
-          sourceHandle: `source-${direction}`,
-          target: id,
-          targetHandle: `target-${oppositeFlowDirection[direction]}`,
+          id:
+            direction === "top" ? `${id}-${source.id}` : `${source.id}-${id}`,
+          source: direction === "top" ? id : source.id,
+          sourceHandle:
+            direction === "top" ? "source-bottom" : `source-${direction}`,
+          target: direction === "top" ? source.id : id,
+          targetHandle:
+            direction === "top"
+              ? "target-top"
+              : `target-${oppositeFlowDirection[direction]}`,
           type: "smoothstep",
           markerEnd: { type: MarkerType.ArrowClosed, color: "#8a97a6" },
         },
@@ -659,12 +700,65 @@ export default function FormProcessEditor() {
   const connectNearby = (sourceId: string, direction: FlowDirection) => {
     const before = graph();
     const source = before.nodes.find((node) => node.id === sourceId);
-    if (
-      !editable ||
-      !source ||
-      before.edges.some((edge) => edge.source === sourceId)
-    )
-      return false;
+    if (!editable || !source) return false;
+    const stamp = Date.now();
+    if (direction === "top") {
+      // 上箭头表示“接入上方节点”：上方节点 → 当前节点。
+      // 若上方节点已有后继，则把当前节点插入两者之间，保持线性流程不断链。
+      if (before.edges.some((edge) => edge.target === sourceId)) return false;
+      const predecessor = findNearbyFlowNode({
+        sourceNode: source,
+        nodes: before.nodes,
+        direction,
+        getSize: formProcessNodeSize,
+        isCandidate: (node) =>
+          node.data.kind !== "END" &&
+          !before.edges.some(
+            (edge) => edge.source === node.id && edge.target === sourceId,
+          ),
+      });
+      if (!predecessor) return false;
+      const outgoing = before.edges.find(
+        (edge) => edge.source === predecessor.id,
+      );
+      if (outgoing && before.edges.some((edge) => edge.source === sourceId))
+        return false;
+      const next: Graph = {
+        nodes: before.nodes,
+        edges: outgoing
+          ? before.edges.filter((edge) => edge.id !== outgoing.id)
+          : [...before.edges],
+      };
+      next.edges = addEdge(
+        {
+          id: `${predecessor.id}-${source.id}-${stamp}`,
+          source: predecessor.id,
+          sourceHandle: outgoing?.sourceHandle ?? "source-bottom",
+          target: source.id,
+          targetHandle: "target-top",
+          type: "smoothstep",
+          markerEnd: { type: MarkerType.ArrowClosed, color: "#8a97a6" },
+        },
+        next.edges,
+      );
+      if (outgoing)
+        next.edges = addEdge(
+          {
+            id: `${source.id}-${outgoing.target}-${stamp}`,
+            source: source.id,
+            sourceHandle: "source-bottom",
+            target: outgoing.target,
+            targetHandle: outgoing.targetHandle ?? "target-top",
+            type: "smoothstep",
+            markerEnd: { type: MarkerType.ArrowClosed, color: "#8a97a6" },
+          },
+          next.edges,
+        );
+      apply(next, before);
+      setMenu(null);
+      return true;
+    }
+    if (before.edges.some((edge) => edge.source === sourceId)) return false;
     const target = findNearbyFlowNode({
       sourceNode: source,
       nodes: before.nodes,
@@ -674,29 +768,52 @@ export default function FormProcessEditor() {
         node.data.kind !== "START" &&
         !before.edges.some(
           (edge) =>
-            edge.target === node.id ||
+            (direction !== "bottom" && edge.target === node.id) ||
             (edge.source === node.id && edge.target === sourceId),
         ),
     });
     if (!target) return false;
-    apply(
+    // 下箭头且下方节点已有前驱时，把当前节点插入两者之间。
+    const incoming =
+      direction === "bottom"
+        ? before.edges.find((edge) => edge.target === target.id)
+        : undefined;
+    if (incoming && before.edges.some((edge) => edge.target === sourceId))
+      return false;
+    const next: Graph = {
+      nodes: before.nodes,
+      edges: incoming
+        ? before.edges.filter((edge) => edge.id !== incoming.id)
+        : [...before.edges],
+    };
+    if (incoming)
+      next.edges = addEdge(
+        {
+          id: `${incoming.source}-${source.id}-${stamp}`,
+          source: incoming.source,
+          sourceHandle: incoming.sourceHandle ?? "source-bottom",
+          target: source.id,
+          targetHandle: "target-top",
+          type: "smoothstep",
+          markerEnd: { type: MarkerType.ArrowClosed, color: "#8a97a6" },
+        },
+        next.edges,
+      );
+    next.edges = addEdge(
       {
-        nodes: before.nodes,
-        edges: addEdge(
-          {
-            id: `${source.id}-${target.id}-${Date.now()}`,
-            source: source.id,
-            sourceHandle: `source-${direction}`,
-            target: target.id,
-            targetHandle: `target-${oppositeFlowDirection[direction]}`,
-            type: "smoothstep",
-            markerEnd: { type: MarkerType.ArrowClosed, color: "#8a97a6" },
-          },
-          before.edges,
-        ),
+        id: `${source.id}-${target.id}-${stamp}`,
+        source: source.id,
+        sourceHandle: incoming ? "source-bottom" : `source-${direction}`,
+        target: target.id,
+        targetHandle: incoming
+          ? (incoming.targetHandle ?? "target-top")
+          : `target-${oppositeFlowDirection[direction]}`,
+        type: "smoothstep",
+        markerEnd: { type: MarkerType.ArrowClosed, color: "#8a97a6" },
       },
-      before,
+      next.edges,
     );
+    apply(next, before);
     setMenu(null);
     return true;
   };
@@ -734,25 +851,53 @@ export default function FormProcessEditor() {
     );
   };
   const removeSelected = () => {
+    if (!editable) return;
     if (
-      !editable ||
-      !selectedNodeId ||
-      selectedNodeId === "start" ||
-      selectedNodeId === "end"
+      selectedNodeId &&
+      selectedNodeId !== "start" &&
+      selectedNodeId !== "end"
+    ) {
+      const before = graph();
+      apply(
+        {
+          nodes: before.nodes.filter((node) => node.id !== selectedNodeId),
+          edges: before.edges.filter(
+            (edge) =>
+              edge.source !== selectedNodeId && edge.target !== selectedNodeId,
+          ),
+        },
+        before,
+      );
+      setSelectedNodeId(null);
+      setMenu(null);
+      return;
+    }
+    if (selectedEdgeId) {
+      const before = graph();
+      apply(
+        {
+          nodes: before.nodes,
+          edges: before.edges.filter((edge) => edge.id !== selectedEdgeId),
+        },
+        before,
+      );
+      setSelectedEdgeId(null);
+    }
+  };
+  const handleCanvasKeyDown = (
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (!editable) return;
+    const target = event.target as HTMLElement;
+    if (
+      target.isContentEditable ||
+      ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
     )
       return;
-    const before = graph();
-    apply(
-      {
-        nodes: before.nodes.filter((node) => node.id !== selectedNodeId),
-        edges: before.edges.filter(
-          (edge) =>
-            edge.source !== selectedNodeId && edge.target !== selectedNodeId,
-        ),
-      },
-      before,
-    );
-    setSelectedNodeId(null);
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      removeSelected();
+    }
   };
   const autoLayout = () => {
     if (!editable) return;
@@ -789,13 +934,22 @@ export default function FormProcessEditor() {
         nodes: serializeNodesForSave(nodes),
         edges,
       }),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      // 保存后只同步缓存、提示成功，不重置画布：保留当前选中节点、
+      // 面板状态和撤销历史，便于用户继续配置。
+      const saved = response.data.data as Version;
+      skipGraphResetRef.current = {
+        id: String(saved.id),
+        nodesJson: saved.nodesJson,
+        edgesJson: saved.edgesJson,
+      };
+      queryClient.setQueryData<Version>(
+        ["form-process-version", processId, saved.id],
+        saved,
+      );
       setDirty(false);
       queryClient.invalidateQueries({
         queryKey: ["form-process-versions", processId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["form-process-version", processId],
       });
       showMessage("草稿已保存");
     },
@@ -829,6 +983,7 @@ export default function FormProcessEditor() {
     else navigate("/workflow/form-processes");
   };
   const selectVersion = (versionId: FormProcessId) => {
+    skipGraphResetRef.current = null;
     if (String(versionId) === String(selectedVersion?.id)) return;
     if (dirty) {
       setPendingVersionId(versionId);
@@ -841,24 +996,40 @@ export default function FormProcessEditor() {
       setSelectedPanelTab("property");
     }
   }, [selected?.data.kind, selectedPanelTab]);
-  const decoratedNodes = nodes.map((node) => ({
-    ...node,
-    data: {
-      ...node.data,
-      editable,
-      selected: node.id === selectedNodeId,
-      quickMenuDirection: menu?.nodeId === node.id ? menu.direction : null,
-      canUseQuickAction:
-        editable &&
-        node.data.kind !== "END" &&
-        !edges.some((edge) => edge.source === node.id),
-      onOpenQuickMenu: (direction: FlowDirection) => {
-        if (!connectNearby(node.id, direction))
-          setMenu({ nodeId: node.id, direction });
+  const decoratedNodes = nodes.map((node) => {
+    const hasOutgoing = edges.some((edge) => edge.source === node.id);
+    const hasIncoming = edges.some((edge) => edge.target === node.id);
+    const quickDirections: FlowDirection[] =
+      node.data.kind === "START"
+        ? hasOutgoing
+          ? []
+          : ["bottom"]
+        : node.data.kind === "APPROVAL"
+          ? [
+              ...(hasIncoming ? [] : (["top"] as FlowDirection[])),
+              ...(hasOutgoing
+                ? []
+                : (["right", "bottom", "left"] as FlowDirection[])),
+            ]
+          : [];
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        editable,
+        selected: node.id === selectedNodeId,
+        quickMenuDirection: menu?.nodeId === node.id ? menu.direction : null,
+        quickDirections,
+        canUseQuickAction: editable && quickDirections.length > 0,
+        onOpenQuickMenu: (direction: FlowDirection) => {
+          if (!connectNearby(node.id, direction))
+            setMenu({ nodeId: node.id, direction });
+        },
+        onQuickAdd: (direction: FlowDirection) =>
+          addApproval(node.id, direction),
       },
-      onQuickAdd: (direction: FlowDirection) => addApproval(node.id, direction),
-    },
-  })) as FlowNode[];
+    };
+  }) as FlowNode[];
   const confirmationMessage =
     confirmation === "publish"
       ? "发布后当前版本只读，系统会自动创建下一草稿版本。确认发布吗？"
@@ -975,7 +1146,11 @@ export default function FormProcessEditor() {
           }}
         >
           <ReactFlowProvider>
-            <Box sx={{ position: "relative", minWidth: 0 }}>
+            <Box
+              tabIndex={0}
+              onKeyDown={handleCanvasKeyDown}
+              sx={{ position: "relative", minWidth: 0, outline: "none" }}
+            >
               <Stack
                 direction="row"
                 spacing={0.5}
@@ -1016,9 +1191,16 @@ export default function FormProcessEditor() {
                 onConnect={addEdgeSafe}
                 onNodeClick={(_, node) => {
                   setSelectedNodeId(node.id);
+                  setSelectedEdgeId(null);
+                  setMenu(null);
+                }}
+                onEdgeClick={(_, edge) => {
+                  setSelectedEdgeId(edge.id);
+                  setSelectedNodeId(null);
                   setMenu(null);
                 }}
                 onPaneClick={() => {
+                  setSelectedEdgeId(null);
                   setMenu(null);
                 }}
                 onNodeDragStart={() => {

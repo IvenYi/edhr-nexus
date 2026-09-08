@@ -1,0 +1,70 @@
+knowledgeModelVersion: 0.3.12
+decisions:
+  - id: DEC-0035
+    title: 表单流程权限配置组与节点按钮事件归属
+    status: specified
+    visibility: internal
+    context: "provenance: user-confirmed；此前按单个主体表达字段默认权限，无法准确表达填报权限组和审批节点的配置边界。本决策将字段权限的配置单元明确为权限配置组：填报阶段一个组可包含多个主体，审批阶段每个审批节点本身就是一个组；按钮签署事件按节点内的具体按钮独立声明。"
+    decisionStatements:
+      - id: DEC-0035-01
+        statement: "provenance: user-confirmed；填报阶段以权限配置组为字段权限配置单元。一个填报权限组可以包含多个用户、部门或角色主体，默认权限和字段例外对组统一生效，不按组内成员重复配置。"
+        status: specified
+        visibility: internal
+      - id: DEC-0035-02
+        statement: "provenance: user-confirmed；审批阶段以审批节点为字段权限配置单元。一个审批节点内配置的多个审批主体共同属于该节点权限组，默认权限和字段例外按节点统一设置，不把审批主体平铺成多个权限组。"
+        status: specified
+        visibility: internal
+      - id: DEC-0035-03
+        statement: "provenance: user-confirmed；填报权限组和审批节点组都只设置全部可编辑或全部只读的默认权限；绑定具体表单后，字段例外仍针对真实稳定 fieldId 保存并只作用于当前绑定。"
+        status: specified
+        visibility: internal
+      - id: DEC-0035-04
+        statement: "provenance: user-confirmed；开始/填报节点和审批节点的每个按钮可以独立声明签署事件，事件关联具体按钮动作，因此不同按钮可以使用不同的签名字段绑定。"
+        status: specified
+        visibility: internal
+      - id: DEC-0035-05
+        statement: "provenance: user-confirmed；未配置按钮事件时不展示该节点的事件配置区域；作业流程表单填写节点不再单独配置内置事件，只为已声明事件绑定所选表单的真实稳定 fieldId。"
+        status: specified
+        visibility: internal
+    supersedes: [DEC-0023]
+    evidenceIds: [evidence.production-form-process-user-confirmed-v4, evidence.production-form-process-buttons-events-v3]
+    acceptanceScenarios:
+      - id: scenario.form-process-entry-permission-group
+        given: 填报阶段配置了一个包含多个主体的权限组
+        when: 用户设置该组的默认权限或字段例外
+        then: 权限按组保存并对组内主体统一生效，不要求逐个成员重复配置
+        evidenceIds: [evidence.production-form-process-user-confirmed-v4]
+        evidenceRequirements: [权限组保存重读测试, 多主体组配置 UI 验证]
+      - id: scenario.form-process-approval-node-permission-group
+        given: 一个审批节点配置了多个审批主体
+        when: 用户设置该审批节点的字段权限
+        then: 审批节点作为一个权限组统一保存权限，主体不被平铺为多个权限组
+        evidenceIds: [evidence.production-form-process-user-confirmed-v4]
+        evidenceRequirements: [审批节点权限组保存测试, 多主体展示验证]
+      - id: scenario.form-process-button-events-per-button
+        given: 一个节点存在多个标准按钮
+        when: 用户分别为按钮声明签署事件
+        then: 每个按钮的事件独立保存并可绑定不同的签名字段
+        evidenceIds: [evidence.production-form-process-user-confirmed-v4, evidence.production-form-process-buttons-events-v3]
+        evidenceRequirements: [按钮事件独立保存测试, 不同字段绑定验证]
+      - id: scenario.form-process-node-event-empty-state
+        given: 节点没有任何按钮事件声明
+        when: 用户打开节点配置
+        then: 不展示节点事件配置区域，避免出现无效的空配置项
+        evidenceIds: [evidence.production-form-process-user-confirmed-v4]
+        evidenceRequirements: [节点配置空事件 UI 验证]
+      - id: scenario.production-work-form-entry-event-binding-only
+        given: 作业流程表单填写节点已绑定表单和已发布表单流程版本
+        when: 用户配置节点内已声明的签署事件
+        then: 仅在作业节点为事件选择真实稳定 fieldId，不新增独立内置事件声明
+        evidenceIds: [evidence.production-form-process-user-confirmed-v4, evidence.production-form-process-buttons-events-v2]
+        evidenceRequirements: [作业节点事件绑定回归验证]
+    implementationDiscrepancies:
+      - id: discrepancy.form-process-permission-group-runtime-unimplemented
+        status: accepted
+        severity: high
+        visibility: internal
+        path: gmp-platform/frontend/src/pages/workflow-center/WorkTemplateEditor.tsx
+        lineHint: 1
+        summary: "provenance: original-evidence；本决策确认配置组的业务边界，但表单流程实例运行时尚未完成按权限组解析字段权限、按钮动作执行和事件副作用。"
+        evidenceIds: [evidence.production-form-process-user-confirmed-v4, evidence.form-renderer-preview-current-input]

@@ -15,6 +15,16 @@ evidence:
     path: docs/knowledge/evidence/production-form-process-user-confirmed-v3.md
     description: 2026-09-05 用户确认主体配置可选：空填报主体或权限组表示所有人可填报，空审批主体表示所有人可审批；空配置不展开全量用户，仍受认证、节点和任务状态约束。
     visibility: internal
+  - id: evidence.production-form-process-user-confirmed-v4
+    type: document
+    path: docs/knowledge/evidence/production-form-process-user-confirmed-v4.md
+    description: 2026-09-07 用户确认填报权限组、审批节点权限组及按按钮独立声明事件的配置边界；未配置事件时不展示节点事件区域。
+    visibility: internal
+  - id: evidence.production-form-process-user-confirmed-v5
+    type: document
+    path: docs/knowledge/evidence/production-form-process-user-confirmed-v5.md
+    description: 2026-09-08 用户确认表单流程版本引用治理边界：作业流程发布时锁定引用版本，表单流程侧提供使用情况分析，草稿发现旧版需提醒并通过兼容性校验后受控升级。
+    visibility: internal
   - id: evidence.production-form-process-guancheng-research
     type: document
     path: docs/reference-assets/research/crown-transaction-module-research.md

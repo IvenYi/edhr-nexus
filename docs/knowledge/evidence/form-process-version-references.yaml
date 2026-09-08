@@ -1,0 +1,62 @@
+knowledgeModelVersion: 0.3.12
+evidence:
+  - id: evidence.form-process-version-reference-implementation
+    type: code
+    path: gmp-platform/backend/src/main/java/com/zencas/edhr/workflow/service/FormProcessReferenceService.java
+    description: 表单流程版本引用投影实现。作业流程图保存、创建继承草稿、发布和复制已发布版本时从事务内重建当前图配置对应的引用投影；节点删除或绑定移除后不再保留旧投影。
+    visibility: internal
+  - id: evidence.form-process-version-reference-entity
+    type: code
+    path: gmp-platform/backend/src/main/java/com/zencas/edhr/workflow/entity/WorkFormProcessReference.java
+    description: 表单流程版本使用投影实体，保存作业模板、作业流程版本、作业节点、表单流程定义、表单流程版本和表单模板版本引用。
+    visibility: internal
+  - id: evidence.form-process-version-reference-migration
+    type: database
+    path: gmp-platform/backend/src/main/resources/db/changelog/0072-work-form-process-references.sql
+    description: Liquibase 0072 新增表单流程版本引用投影表、查询索引和开发环境既有图配置回填；迁移只派生查询投影，不改变作业流程 nodesJson 中的真实绑定。
+    visibility: internal
+  - id: evidence.form-process-version-usage-controller
+    type: code
+    path: gmp-platform/backend/src/main/java/com/zencas/edhr/workflow/controller/FormProcessController.java
+    description: 表单流程使用情况查询接口，按表单流程定义返回各版本被哪些作业、作业流程版本、表单填报节点和绑定表单引用。
+    visibility: internal
+  - id: evidence.form-process-version-upgrade-controller
+    type: code
+    path: gmp-platform/backend/src/main/java/com/zencas/edhr/workflow/controller/WorkTemplateController.java
+    description: 作业流程表单填报节点引用状态接口。草稿可查看旧版引用、目标当前发布版本及升级阻塞原因；升级动作不自动保存草稿，持久化仍由保存草稿接口完成。
+    visibility: internal
+  - id: evidence.form-process-version-reference-tests
+    type: test
+    path: gmp-platform/backend/src/test/java/com/zencas/edhr/workflow/service/FormProcessReferenceServiceTest.java
+    description: 引用投影服务测试覆盖从当前作业流程图重建投影、清理失效节点和跳过草稿中的非法引用。
+    visibility: internal
+  - id: evidence.form-process-version-upgrade-tests
+    type: test
+    path: gmp-platform/backend/src/test/java/com/zencas/edhr/workflow/controller/WorkTemplateControllerTest.java
+    description: 作业流程控制器测试覆盖保存图重建投影、草稿旧版引用状态和升级阻塞原因；草稿持久化仍通过保存图路径验证。
+    visibility: internal
+  - id: evidence.form-process-version-usage-ui
+    type: code
+    path: gmp-platform/frontend/src/pages/workflow-center/FormProcessList.tsx
+    description: 表单流程详情提供使用情况页签，按流程版本分组展示引用它的作业、作业流程版本、表单填报节点和绑定表单。
+    visibility: internal
+  - id: evidence.form-process-version-upgrade-ui
+    type: code
+    path: gmp-platform/frontend/src/pages/workflow-center/WorkTemplateEditor.tsx
+    description: 作业流程草稿在存在旧版表单流程引用时展示全局提醒和节点级升级入口；发布确认也会提示仍有旧版引用。
+    visibility: internal
+  - id: evidence.form-process-optional-binding-controller
+    type: code
+    path: gmp-platform/backend/src/main/java/com/zencas/edhr/workflow/controller/WorkTemplateController.java
+    description: 作业流程发布校验允许表单填报节点只绑定当前生效表单模板版本而不配置表单流程；只有存在表单流程引用时才校验流程版本、字段权限和事件绑定。
+    visibility: internal
+  - id: evidence.form-process-delete-reference-guard
+    type: code
+    path: gmp-platform/backend/src/main/java/com/zencas/edhr/workflow/controller/FormProcessController.java
+    description: 表单流程删除前检查使用情况投影；已被任何作业流程版本中的表单填报节点引用时禁止删除。
+    visibility: internal
+  - id: evidence.form-process-delete-reference-guard-test
+    type: test
+    path: gmp-platform/backend/src/test/java/com/zencas/edhr/workflow/controller/FormProcessControllerTest.java
+    description: 表单流程控制器测试覆盖已被作业流程引用时拒绝删除，且不继续删除流程定义和版本。
+    visibility: internal

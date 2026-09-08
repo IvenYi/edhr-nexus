@@ -149,3 +149,5 @@ databaseChangeLog:
       file: db/changelog/0070-workshop-management.sql
   - include:
       file: db/changelog/0071-workflow-task-candidates.sql
+  - include:
+      file: db/changelog/0072-work-form-process-references.sql

@@ -12,6 +12,7 @@ import com.zencas.edhr.workflow.entity.WorkflowBindingRule;
 import com.zencas.edhr.workflow.repository.WorkflowBindingRuleRepository;
 import com.zencas.edhr.workflow.repository.WorkflowDefinitionRepository;
 import com.zencas.edhr.workflow.repository.WorkflowDefinitionVersionRepository;
+import com.zencas.edhr.workflow.service.FormProcessReferenceService;
 import com.zencas.edhr.common.util.SnowflakeIdGenerator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +50,7 @@ class WorkTemplateControllerTest {
     @Mock private WorkflowBindingRuleRepository bindingRuleRepository;
     @Mock private AuditEventRepository auditEventRepository;
     @Mock private FormTemplateVersionRepository formTemplateVersionRepository;
+    @Mock private FormProcessReferenceService formProcessReferenceService;
     @Mock private SnowflakeIdGenerator idGenerator;
     @Mock private ObjectMapper objectMapper;
     @InjectMocks private WorkTemplateController controller;
@@ -305,6 +307,47 @@ class WorkTemplateControllerTest {
                         + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]");
         when(workflowDefinitionRepository.findById(101L)).thenReturn(Optional.of(work));
         when(versionRepository.findById(201L)).thenReturn(Optional.of(draft));
+        when(versionRepository.findByDefinitionIdOrderByVersionNumberDesc(101L)).thenReturn(List.of(draft));
+        when(versionRepository.save(any(WorkflowDefinitionVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(idGenerator.nextId()).thenReturn(801L, 802L, 803L);
+
+        assertThat(controller.publishVersion(101L, 201L).getData().getStatus()).isEqualTo("PUBLISHED");
+    }
+
+    @Test
+    void allowsPublishingAFormNodeWithoutAFormProcess() {
+        WorkflowDefinition work = WorkflowDefinition.builder().id(101L).name("无流程表单作业").type("WORK").build();
+        WorkflowDefinitionVersion draft = draftVersion(201L,
+                "[{\"id\":\"start\",\"data\":{\"kind\":\"START\"}},"
+                        + "{\"id\":\"form\",\"data\":{\"kind\":\"FORM\",\"config\":{\"formTemplateVersionId\":\"702\"}}},"
+                        + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]");
+        when(workflowDefinitionRepository.findById(101L)).thenReturn(Optional.of(work));
+        when(versionRepository.findById(201L)).thenReturn(Optional.of(draft));
+        when(versionRepository.findByDefinitionIdOrderByVersionNumberDesc(101L)).thenReturn(List.of(draft));
+        when(versionRepository.save(any(WorkflowDefinitionVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(idGenerator.nextId()).thenReturn(801L, 802L, 803L);
+
+        assertThat(controller.publishVersion(101L, 201L).getData().getStatus()).isEqualTo("PUBLISHED");
+    }
+
+    @Test
+    void allowsSignatureEventWithoutFieldFillToRemainUnbound() {
+        WorkflowDefinition work = WorkflowDefinition.builder().id(101L).name("签名字段作业").type("WORK").build();
+        WorkflowDefinitionVersion draft = draftVersion(201L,
+                "[{\"id\":\"start\",\"data\":{\"kind\":\"START\"}},"
+                        + "{\"id\":\"form\",\"data\":{\"kind\":\"FORM\",\"config\":{\"formTemplateVersionId\":\"702\",\"formProcessVersionId\":\"901\"}}},"
+                        + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]");
+        WorkflowDefinitionVersion process = WorkflowDefinitionVersion.builder().id(901L).definitionId(902L)
+                .status("PUBLISHED").isCurrent(true)
+                .nodesJson("[{\"id\":\"start\",\"data\":{\"kind\":\"START\",\"config\":{"
+                        + "\"buttonEvents\":[{\"id\":\"event-1\",\"event\":\"BEFORE\",\"action\":\"SUBMIT\",\"builtin\":\"NONE\",\"signatureMethod\":\"ACCOUNT_PASSWORD\"}]}}},"
+                        + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]")
+                .build();
+        when(workflowDefinitionRepository.findById(101L)).thenReturn(Optional.of(work));
+        when(versionRepository.findById(201L)).thenReturn(Optional.of(draft));
+        when(versionRepository.findById(901L)).thenReturn(Optional.of(process));
+        when(workflowDefinitionRepository.findById(902L)).thenReturn(Optional.of(
+                WorkflowDefinition.builder().id(902L).type("FORM_PROCESS").name("表单流程").build()));
         when(versionRepository.findByDefinitionIdOrderByVersionNumberDesc(101L)).thenReturn(List.of(draft));
         when(versionRepository.save(any(WorkflowDefinitionVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(idGenerator.nextId()).thenReturn(801L, 802L, 803L);
@@ -609,6 +652,83 @@ class WorkTemplateControllerTest {
 
         assertThatThrownBy(() -> controller.publishVersion(101L, 201L))
                 .hasMessageContaining("不支持的旧配置字段");
+    }
+
+    @Test
+    void saveGraphRebuildsFormProcessReferenceProjection() {
+        WorkflowDefinition work = WorkflowDefinition.builder().id(101L).name("表单作业").type("WORK").build();
+        WorkflowDefinitionVersion draft = draftVersion(201L,
+                "[{\"id\":\"start\",\"data\":{\"kind\":\"START\"}},{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]");
+        when(workflowDefinitionRepository.findById(101L)).thenReturn(Optional.of(work));
+        when(versionRepository.findById(201L)).thenReturn(Optional.of(draft));
+        when(versionRepository.save(any(WorkflowDefinitionVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        controller.saveGraph(101L, 201L, Map.of(
+                "nodes", List.of(
+                        Map.of("id", "start", "data", Map.of("kind", "START")),
+                        Map.of("id", "end", "data", Map.of("kind", "END"))),
+                "edges", List.of()));
+
+        verify(formProcessReferenceService).rebuildForWorkVersion(draft);
+    }
+
+    @Test
+    void exposesOutdatedFormProcessReferenceForDraft() {
+        WorkflowDefinition work = WorkflowDefinition.builder().id(101L).name("表单作业").type("WORK").build();
+        WorkflowDefinitionVersion draft = draftVersion(201L,
+                "[{\"id\":\"start\",\"data\":{\"kind\":\"START\"}},"
+                        + "{\"id\":\"form\",\"data\":{\"kind\":\"FORM\",\"label\":\"表单填写\",\"config\":{\"formTemplateVersionId\":\"702\",\"formProcessVersionId\":\"901\"}}},"
+                        + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]");
+        WorkflowDefinition processDefinition = WorkflowDefinition.builder().id(902L).type("FORM_PROCESS").name("现场填报审批").build();
+        WorkflowDefinitionVersion oldProcess = WorkflowDefinitionVersion.builder().id(901L).definitionId(902L)
+                .versionNumber(3).status("PUBLISHED").isCurrent(false).nodesJson("[]").build();
+        WorkflowDefinitionVersion latestProcess = WorkflowDefinitionVersion.builder().id(903L).definitionId(902L)
+                .versionNumber(4).status("PUBLISHED").isCurrent(true).nodesJson("[]").build();
+        when(workflowDefinitionRepository.findById(101L)).thenReturn(Optional.of(work));
+        when(workflowDefinitionRepository.findById(902L)).thenReturn(Optional.of(processDefinition));
+        when(versionRepository.findById(201L)).thenReturn(Optional.of(draft));
+        when(versionRepository.findById(901L)).thenReturn(Optional.of(oldProcess));
+        when(versionRepository.findByDefinitionIdAndIsCurrentTrue(902L)).thenReturn(Optional.of(latestProcess));
+
+        var response = controller.listFormProcessReferences(101L, 201L);
+
+        assertThat(response.getData()).singleElement().satisfies(status -> {
+            assertThat(status.nodeId()).isEqualTo("form");
+            assertThat(status.formProcessName()).isEqualTo("现场填报审批");
+            assertThat(status.formProcessVersionNumber()).isEqualTo(3);
+            assertThat(status.latestFormProcessVersionNumber()).isEqualTo(4);
+            assertThat(status.outdated()).isTrue();
+            assertThat(status.upgradeAvailable()).isTrue();
+            assertThat(status.upgradeBlockers()).isEmpty();
+        });
+    }
+
+    @Test
+    void exposesUpgradeBlockerWhenLatestProcessBreaksEventBinding() {
+        WorkflowDefinition work = WorkflowDefinition.builder().id(101L).name("表单作业").type("WORK").build();
+        WorkflowDefinitionVersion draft = draftVersion(201L,
+                "[{\"id\":\"start\",\"data\":{\"kind\":\"START\"}},"
+                        + "{\"id\":\"form\",\"data\":{\"kind\":\"FORM\",\"config\":{\"formTemplateVersionId\":\"702\",\"formProcessVersionId\":\"901\",\"eventBindings\":{\"start:event-1\":{\"fieldId\":\"signature\"}}}}},"
+                        + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]");
+        WorkflowDefinition processDefinition = WorkflowDefinition.builder().id(902L).type("FORM_PROCESS").name("现场填报审批").build();
+        WorkflowDefinitionVersion oldProcess = WorkflowDefinitionVersion.builder().id(901L).definitionId(902L)
+                .versionNumber(3).status("PUBLISHED").isCurrent(false).nodesJson("[]").build();
+        WorkflowDefinitionVersion latestProcess = WorkflowDefinitionVersion.builder().id(903L).definitionId(902L)
+                .versionNumber(4).status("PUBLISHED").isCurrent(true).nodesJson("[]").build();
+        when(workflowDefinitionRepository.findById(101L)).thenReturn(Optional.of(work));
+        when(workflowDefinitionRepository.findById(902L)).thenReturn(Optional.of(processDefinition));
+        when(versionRepository.findById(201L)).thenReturn(Optional.of(draft));
+        when(versionRepository.findById(901L)).thenReturn(Optional.of(oldProcess));
+        when(versionRepository.findByDefinitionIdAndIsCurrentTrue(902L)).thenReturn(Optional.of(latestProcess));
+
+        var response = controller.listFormProcessReferences(101L, 201L);
+
+        assertThat(response.getData()).singleElement().satisfies(status -> {
+            assertThat(status.outdated()).isTrue();
+            assertThat(status.upgradeAvailable()).isFalse();
+            assertThat(status.upgradeBlockers()).anySatisfy(message ->
+                    assertThat(message).contains("引用了不存在的内置事件"));
+        });
     }
 
     private WorkflowDefinitionVersion draftVersion(Long id, String nodesJson) {

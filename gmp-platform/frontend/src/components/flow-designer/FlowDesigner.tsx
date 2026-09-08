@@ -1,6 +1,7 @@
 import {
   useState,
   type MouseEvent as ReactMouseEvent,
+  type ReactElement,
   type ReactNode,
 } from "react";
 import {
@@ -375,6 +376,45 @@ function quickDirectionIcon(direction: FlowDirection) {
   return <ArrowBackOutlined fontSize="small" />;
 }
 
+// Keep the helper text beside the arrow instead of in the direction where the
+// add-node menu opens. The menu then has a clear, unobstructed click target.
+function quickTooltipPlacement(direction: FlowDirection) {
+  if (direction === "top") return "left" as const;
+  if (direction === "right") return "top" as const;
+  if (direction === "bottom") return "right" as const;
+  return "bottom" as const;
+}
+
+export function FlowQuickTooltip({
+  children,
+  title,
+  direction,
+  placement,
+  menuOpen = false,
+}: {
+  children: ReactElement;
+  title: string;
+  direction?: FlowDirection;
+  placement?: "top" | "right" | "bottom" | "left";
+  menuOpen?: boolean;
+}) {
+  // Unmount the tooltip while its menu is open. Disabling listeners alone can
+  // leave an already-open portal visible over the add-node actions.
+  if (menuOpen) return <>{children}</>;
+  return (
+    <Tooltip
+      title={title}
+      placement={
+        placement ?? (direction ? quickTooltipPlacement(direction) : "top")
+      }
+      arrow
+      disableInteractive
+    >
+      {children}
+    </Tooltip>
+  );
+}
+
 function quickMenuStyle(direction: FlowDirection) {
   const common = {
     position: "absolute" as const,
@@ -429,6 +469,7 @@ export function StandardFlowNode({
   selected,
   validationMessage,
   quickDirections,
+  quickArrowDirections,
   quickMenuDirection,
   quickActions,
   canUseQuickAction,
@@ -448,6 +489,8 @@ export function StandardFlowNode({
   selected: boolean;
   validationMessage?: string;
   quickDirections: FlowDirection[];
+  /** Directions showing quick arrow buttons; defaults to quickDirections which always render handles. */
+  quickArrowDirections?: FlowDirection[];
   quickMenuDirection?: FlowDirection | null;
   quickActions: FlowQuickAction[];
   canUseQuickAction: boolean;
@@ -583,7 +626,7 @@ export function StandardFlowNode({
           ))
         : null}
       {editable && canUseQuickAction
-        ? quickDirections.map((direction) => (
+        ? (quickArrowDirections ?? quickDirections).map((direction) => (
             <Box
               key={direction}
               className="flow-node-quick-hit-area nodrag nopan"
@@ -604,7 +647,11 @@ export function StandardFlowNode({
                 transition: "opacity 120ms ease",
               }}
             >
-              <Tooltip title="连接或添加节点" arrow>
+              <FlowQuickTooltip
+                title="连接或添加节点"
+                direction={direction}
+                menuOpen={Boolean(quickMenuDirection)}
+              >
                 <IconButton
                   className="flow-node-quick nodrag nopan"
                   size="small"
@@ -618,7 +665,7 @@ export function StandardFlowNode({
                 >
                   {quickDirectionIcon(direction)}
                 </IconButton>
-              </Tooltip>
+              </FlowQuickTooltip>
             </Box>
           ))
         : null}

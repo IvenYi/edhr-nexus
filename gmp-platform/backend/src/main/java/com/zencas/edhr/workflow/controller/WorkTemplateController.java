@@ -19,6 +19,7 @@ import com.zencas.edhr.workflow.entity.WorkflowBindingRule;
 import com.zencas.edhr.workflow.repository.WorkflowDefinitionRepository;
 import com.zencas.edhr.workflow.repository.WorkflowDefinitionVersionRepository;
 import com.zencas.edhr.workflow.repository.WorkflowBindingRuleRepository;
+import com.zencas.edhr.workflow.service.FormProcessReferenceService;
 import com.zencas.edhr.common.util.SnowflakeIdGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -61,6 +62,7 @@ public class WorkTemplateController {
     private final WorkflowBindingRuleRepository bindingRuleRepository;
     private final AuditEventRepository auditEventRepository;
     private final FormTemplateVersionRepository formTemplateVersionRepository;
+    private final FormProcessReferenceService formProcessReferenceService;
     private final SnowflakeIdGenerator idGenerator;
     private final ObjectMapper objectMapper;
 
@@ -141,6 +143,7 @@ public class WorkTemplateController {
         }
         versions.forEach(version -> {
             Map<String, Object> versionBefore = versionSnapshot(version);
+            formProcessReferenceService.deleteForWorkVersion(version.getId());
             versionRepository.delete(version);
             recordAudit("PRODUCTION_WORK_FLOW_VERSION", version.getId(), "DELETE", versionBefore, emptySnapshot());
         });
@@ -163,6 +166,15 @@ public class WorkTemplateController {
     public ApiResponse<WorkflowDefinitionVersion> getVersion(@PathVariable Long id, @PathVariable Long versionId) {
         findWorkDefinition(id);
         return ApiResponse.success(findVersion(id, versionId));
+    }
+
+    @GetMapping("/{id}/versions/{versionId}/form-process-references")
+    public ApiResponse<List<FormProcessReferenceStatus>> listFormProcessReferences(
+            @PathVariable Long id,
+            @PathVariable Long versionId) {
+        findWorkDefinition(id);
+        WorkflowDefinitionVersion version = findVersion(id, versionId);
+        return ApiResponse.success(formProcessReferenceStatuses(version));
     }
 
     @PutMapping("/{id}/versions/{versionId}/graph")
@@ -188,6 +200,7 @@ public class WorkTemplateController {
             throw new com.zencas.edhr.common.exception.BusinessException(com.zencas.edhr.common.exception.ErrorCode.GENERAL_001, "流程图数据格式不正确");
         }
         WorkflowDefinitionVersion saved = versionRepository.save(version);
+        formProcessReferenceService.rebuildForWorkVersion(saved);
         recordAudit("PRODUCTION_WORK_FLOW_VERSION", saved.getId(), "UPDATE", before, versionSnapshot(saved));
         return ApiResponse.success(saved);
     }
@@ -204,6 +217,7 @@ public class WorkTemplateController {
         WorkflowDefinitionVersion previous = versions.isEmpty() ? null : versions.get(0);
         WorkflowDefinitionVersion draft = newDraft(id, previous == null ? 1 : previous.getVersionNumber() + 1, previous);
         WorkflowDefinitionVersion saved = versionRepository.save(draft);
+        formProcessReferenceService.rebuildForWorkVersion(saved);
         recordAudit("PRODUCTION_WORK_FLOW_VERSION", saved.getId(), "CREATE", emptySnapshot(), versionSnapshot(saved));
         return ApiResponse.success(saved);
     }
@@ -235,7 +249,9 @@ public class WorkTemplateController {
         // published transition before inserting the inherited next draft in this transaction.
         versionRepository.flush();
         recordAudit("PRODUCTION_WORK_FLOW_VERSION", saved.getId(), "UPDATE", before, versionSnapshot(saved));
+        formProcessReferenceService.rebuildForWorkVersion(saved);
         WorkflowDefinitionVersion nextDraft = versionRepository.save(newDraft(id, saved.getVersionNumber() + 1, saved));
+        formProcessReferenceService.rebuildForWorkVersion(nextDraft);
         recordAudit("PRODUCTION_WORK_FLOW_VERSION", nextDraft.getId(), "CREATE", emptySnapshot(), versionSnapshot(nextDraft));
         return ApiResponse.success(saved);
     }
@@ -265,6 +281,7 @@ public class WorkTemplateController {
             draft.setNodesJson(source.getNodesJson());
             draft.setEdgesJson(source.getEdgesJson());
             saved = versionRepository.save(draft);
+            formProcessReferenceService.rebuildForWorkVersion(saved);
             recordAudit("PRODUCTION_WORK_FLOW_VERSION", saved.getId(), "UPDATE", before,
                     versionCopySnapshot(saved, source));
         } else {
@@ -280,6 +297,7 @@ public class WorkTemplateController {
                     .max()
                     .orElse(0) + 1;
             saved = versionRepository.save(newDraft(id, nextVersionNumber, source));
+            formProcessReferenceService.rebuildForWorkVersion(saved);
             recordAudit("PRODUCTION_WORK_FLOW_VERSION", saved.getId(), "CREATE", emptySnapshot(),
                     versionCopySnapshot(saved, source));
         }
@@ -602,6 +620,80 @@ public class WorkTemplateController {
                 com.zencas.edhr.common.exception.ErrorCode.WF_002, message);
     }
 
+    private List<FormProcessReferenceStatus> formProcessReferenceStatuses(WorkflowDefinitionVersion workVersion) {
+        List<FormProcessReferenceStatus> statuses = new java.util.ArrayList<>();
+        try {
+            JsonNode nodes = FLOW_GRAPH_OBJECT_MAPPER.readTree(
+                    workVersion.getNodesJson() == null ? "[]" : workVersion.getNodesJson());
+            if (!nodes.isArray()) return statuses;
+            for (JsonNode node : nodes) {
+                if (!"FORM".equals(node.path("data").path("kind").asText(""))) continue;
+                JsonNode config = node.path("data").path("config");
+                String processVersionId = config.path("formProcessVersionId").asText("").trim();
+                if (processVersionId.isBlank()) continue;
+                Long processVersionIdValue = parseLong(processVersionId);
+                WorkflowDefinitionVersion referencedVersion = processVersionIdValue == null
+                        ? null
+                        : versionRepository.findById(processVersionIdValue).orElse(null);
+                WorkflowDefinition processDefinition = referencedVersion == null
+                        ? null
+                        : workflowDefinitionRepository.findById(referencedVersion.getDefinitionId())
+                                .filter(definition -> "FORM_PROCESS".equals(definition.getType()))
+                                .orElse(null);
+                WorkflowDefinitionVersion latestVersion = processDefinition == null
+                        ? null
+                        : versionRepository.findByDefinitionIdAndIsCurrentTrue(processDefinition.getId())
+                                .filter(candidate -> "PUBLISHED".equals(candidate.getStatus()))
+                                .orElse(null);
+                List<String> blockers = new java.util.ArrayList<>();
+                if (referencedVersion == null || processDefinition == null) {
+                    blockers.add("引用的表单流程版本不存在");
+                } else if (!"PUBLISHED".equals(referencedVersion.getStatus())) {
+                    blockers.add("引用的表单流程版本不是已发布状态");
+                }
+                if (processDefinition != null && latestVersion == null) {
+                    blockers.add("表单流程暂无当前发布版本");
+                }
+                boolean outdated = referencedVersion != null
+                        && latestVersion != null
+                        && !referencedVersion.getId().equals(latestVersion.getId());
+                if (outdated) {
+                    try {
+                        validateFormProcessFieldPermissions(node, latestVersion.getNodesJson());
+                    } catch (com.zencas.edhr.common.exception.BusinessException exception) {
+                        blockers.add(exception.getMessage());
+                    }
+                }
+                statuses.add(new FormProcessReferenceStatus(
+                        node.path("id").asText(""),
+                        node.path("data").path("label").asText(""),
+                        processDefinition == null ? null : processDefinition.getId(),
+                        processDefinition == null ? null : processDefinition.getName(),
+                        referencedVersion == null ? null : referencedVersion.getId(),
+                        referencedVersion == null ? null : referencedVersion.getVersionNumber(),
+                        referencedVersion == null ? null : referencedVersion.getStatus(),
+                        referencedVersion == null ? null : referencedVersion.getIsCurrent(),
+                        latestVersion == null ? null : latestVersion.getId(),
+                        latestVersion == null ? null : latestVersion.getVersionNumber(),
+                        outdated,
+                        "DRAFT".equals(workVersion.getStatus()) && outdated && blockers.isEmpty(),
+                        blockers));
+            }
+        } catch (JsonProcessingException exception) {
+            return List.of();
+        }
+        return statuses;
+    }
+
+    private Long parseLong(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return Long.valueOf(value.trim());
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
     private void validatePublishableFormReferences(String nodesJson) {
         try {
             JsonNode nodes = FLOW_GRAPH_OBJECT_MAPPER.readTree(nodesJson);
@@ -644,9 +736,7 @@ public class WorkTemplateController {
                 if (!"FORM".equals(node.path("data").path("kind").asText())) continue;
                 String processVersionId = node.path("data").path("config").path("formProcessVersionId").asText("").trim();
                 if (processVersionId.isBlank()) {
-                    throw new com.zencas.edhr.common.exception.BusinessException(
-                            com.zencas.edhr.common.exception.ErrorCode.WF_002,
-                            "表单填写节点尚未选择表单流程版本，当前不能发布");
+                    continue;
                 }
                 WorkflowDefinitionVersion processVersion;
                 try {
@@ -813,13 +903,19 @@ public class WorkTemplateController {
                     JsonNode rules = config.path("permissionGroupRules");
                     if (rules.isArray()) {
                         for (int index = 0; index < rules.size(); index++) {
-                            String label = rules.get(index).path("group").asText("").trim();
-                            if (!label.isBlank()) subjectIds.add("start:" + index + ":" + label);
+                            JsonNode rule = rules.get(index);
+                            String ruleId = rule.path("id").asText("").trim();
+                            boolean hasSubjects = rule.path("subjects").isArray()
+                                    ? rule.path("subjects").size() > 0
+                                    : !rule.path("group").asText("").trim().isBlank();
+                            if (hasSubjects) {
+                                subjectIds.add("start:" + (ruleId.isBlank() ? "legacy-" + index : ruleId));
+                            }
                         }
                     }
                 } else if ("APPROVAL".equals(kind)) {
-                    String label = config.path("approvers").asText("").trim();
-                    if (!label.isBlank()) subjectIds.add("approval:" + node.path("id").asText("") + ":" + label);
+                    String nodeId = node.path("id").asText("").trim();
+                    if (!nodeId.isBlank()) subjectIds.add("approval:" + nodeId);
                 }
             }
         } catch (Exception ignored) {
@@ -1183,6 +1279,22 @@ public class WorkTemplateController {
             default -> throw new com.zencas.edhr.common.exception.BusinessException(
                     com.zencas.edhr.common.exception.ErrorCode.GENERAL_001, "适用方式不正确");
         };
+    }
+
+    public record FormProcessReferenceStatus(
+            String nodeId,
+            String nodeLabel,
+            @JsonSerialize(using = ToStringSerializer.class) Long formProcessDefinitionId,
+            String formProcessName,
+            @JsonSerialize(using = ToStringSerializer.class) Long formProcessVersionId,
+            Integer formProcessVersionNumber,
+            String formProcessVersionStatus,
+            Boolean formProcessVersionIsCurrent,
+            @JsonSerialize(using = ToStringSerializer.class) Long latestFormProcessVersionId,
+            Integer latestFormProcessVersionNumber,
+            Boolean outdated,
+            Boolean upgradeAvailable,
+            List<String> upgradeBlockers) {
     }
 
     public record WorkApplicabilityRuleSummary(

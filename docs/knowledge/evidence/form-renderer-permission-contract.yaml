@@ -1,0 +1,12 @@
+knowledgeModelVersion: 0.3.12
+evidence:
+  - id: evidence.form-process-field-permission-implementation
+    type: code
+    path: gmp-platform/frontend/src/pages/workflow-center/WorkTemplateEditor.tsx
+    description: 流程配置保存主体默认权限及绑定级字段例外配置。
+    visibility: internal
+  - id: evidence.form-renderer-preview-current-input
+    type: code
+    path: gmp-platform/frontend/src/pages/master-data/DhrTemplateWorkspaceDialog.tsx
+    description: 当前表单预览器接收表单文档，字段权限状态输入契约待接入。
+    visibility: internal

@@ -84,6 +84,18 @@ concepts:
     status: specified
     visibility: internal
     evidenceIds: [evidence.production-form-process-user-confirmed]
+  - id: concept.form-process-version-reference
+    termId: term.form-process-version-reference
+    kind: business-configuration
+    status: implemented
+    visibility: internal
+    evidenceIds: [evidence.production-form-process-user-confirmed-v5, evidence.form-process-version-reference-implementation]
+  - id: concept.form-process-version-usage-projection
+    termId: term.form-process-version-usage-projection
+    kind: business-fact
+    status: implemented
+    visibility: internal
+    evidenceIds: [evidence.production-form-process-user-confirmed-v5, evidence.form-process-version-reference-implementation]
   - id: concept.form-process-field-slot
     termId: term.form-process-field-slot
     kind: business-configuration
@@ -179,7 +191,13 @@ concepts:
     kind: business-configuration
     status: specified
     visibility: internal
-    evidenceIds: [evidence.production-form-process-user-confirmed-v2]
+    evidenceIds: [evidence.production-form-process-user-confirmed-v2, evidence.production-form-process-user-confirmed-v4]
+  - id: concept.form-process-permission-group
+    termId: term.form-process-permission-group
+    kind: business-configuration
+    status: specified
+    visibility: internal
+    evidenceIds: [evidence.production-form-process-user-confirmed-v4]
   - id: concept.form-template-field
     termId: term.form-template-field
     kind: business-fact
@@ -602,16 +620,37 @@ relations:
     source: concept.form-process-template-version
     target: concept.form-process-subject
     cardinality: one-to-zero-or-many
-    status: specified
+    status: deprecated
     visibility: internal
     evidenceIds: [evidence.production-form-process-user-confirmed-v2]
+  - id: relation.form-process-flow-version-has-permission-groups
+    source: concept.form-process-template-version
+    target: concept.form-process-permission-group
+    cardinality: one-to-zero-or-many
+    status: specified
+    visibility: internal
+    evidenceIds: [evidence.production-form-process-user-confirmed-v4]
+  - id: relation.form-process-permission-group-contains-subjects
+    source: concept.form-process-permission-group
+    target: concept.form-process-subject
+    cardinality: one-to-zero-or-many
+    status: specified
+    visibility: internal
+    evidenceIds: [evidence.production-form-process-user-confirmed-v4]
   - id: relation.form-process-subject-has-default-permission
     source: concept.form-process-subject
     target: concept.form-process-subject-default-permission
     cardinality: one-to-zero-or-one
-    status: specified
+    status: deprecated
     visibility: internal
     evidenceIds: [evidence.production-form-process-user-confirmed-v2]
+  - id: relation.form-process-permission-group-has-default-permission
+    source: concept.form-process-permission-group
+    target: concept.form-process-subject-default-permission
+    cardinality: one-to-zero-or-one
+    status: specified
+    visibility: internal
+    evidenceIds: [evidence.production-form-process-user-confirmed-v4]
   - id: relation.form-process-subject-selector-supports-user
     source: concept.form-process-subject-selector
     target: concept.identity-user-subject
@@ -920,6 +959,34 @@ relations:
     status: specified
     visibility: internal
     evidenceIds: [evidence.ai-transaction-runtime-architecture]
+  - id: relation.production-work-flow-version-has-form-process-version-references
+    source: concept.production-work-flow-version
+    target: concept.form-process-version-reference
+    cardinality: one-to-zero-or-many
+    status: implemented
+    visibility: internal
+    evidenceIds: [evidence.production-form-process-user-confirmed-v5, evidence.form-process-version-reference-implementation]
+  - id: relation.form-process-version-reference-points-form-process-version
+    source: concept.form-process-version-reference
+    target: concept.form-process-template-version
+    cardinality: many-to-one
+    status: implemented
+    visibility: internal
+    evidenceIds: [evidence.production-form-process-user-confirmed-v5, evidence.form-process-version-reference-implementation]
+  - id: relation.form-process-version-usage-projection-derives-from-work-flow-version
+    source: concept.form-process-version-usage-projection
+    target: concept.production-work-flow-version
+    cardinality: many-to-one
+    status: implemented
+    visibility: internal
+    evidenceIds: [evidence.production-form-process-user-confirmed-v5, evidence.form-process-version-reference-implementation]
+  - id: relation.form-process-version-usage-projection-points-form-process-version
+    source: concept.form-process-version-usage-projection
+    target: concept.form-process-template-version
+    cardinality: many-to-one
+    status: implemented
+    visibility: internal
+    evidenceIds: [evidence.production-form-process-user-confirmed-v5, evidence.form-process-version-reference-implementation]
   - id: relation.production-work-flow-version-configures-condition-rule
     source: concept.production-work-flow-version
     target: concept.production-work-condition-rule

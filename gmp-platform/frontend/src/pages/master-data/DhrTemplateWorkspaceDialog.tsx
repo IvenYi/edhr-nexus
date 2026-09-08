@@ -271,16 +271,19 @@ function flattenCanvasNodes(nodes: CanvasNode[]): CanvasNode[] {
   return nodes.flatMap((node) => [node, ...(node.children ? flattenCanvasNodes(node.children) : [])]);
 }
 
-function PreviewField({ node, document }: { node: CanvasNode; document: TemplateDesignerDocument }) {
+export type PreviewFieldPermission = Record<string, 'EDIT' | 'READ_ONLY'>;
+
+function PreviewField({ node, document, fieldPermissions }: { node: CanvasNode; document: TemplateDesignerDocument; fieldPermissions?: PreviewFieldPermission }) {
   const field = document.model.fields.find((entry) => entry.id === node.bindings?.fieldId);
   const label = String(node.bindings?.displayLabel || field?.name || node.props.label || '字段');
   const placeholder = String(node.bindings?.placeholder || node.props.placeholder || (field?.type === 'datetime' ? '请选择日期' : field?.type === 'singleSelect' || field?.type === 'reference' ? '请选择' : '请输入'));
   const hidden = Boolean(node.bindings?.hidden);
   if (hidden || node.type === 'sub-table') return null;
-  return <Box sx={{ height: '100%', minWidth: 0, display: 'flex', alignItems: 'center', px: 0.75, color: '#97a0ad', fontSize: 12, border: '1px solid #d8dee8', borderRadius: '3px', bgcolor: node.bindings?.readonly ? '#f7f8fa' : '#fff', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{placeholder || label}</Box>;
+  const readOnly = fieldPermissions?.[String(field?.id ?? node.bindings?.fieldId ?? '')] === 'READ_ONLY' || Boolean(node.bindings?.readonly);
+  return <Box sx={{ height: '100%', minWidth: 0, display: 'flex', alignItems: 'center', px: 0.75, color: readOnly ? '#7b8794' : '#617083', fontSize: 12, border: `1px solid ${readOnly ? '#d9dee7' : '#c7d8e8'}`, borderRadius: '3px', bgcolor: readOnly ? '#f3f5f7' : '#fff', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{placeholder || label}</Box>;
 }
 
-function SheetPreview({ page, document }: { page: CanvasPage; document: TemplateDesignerDocument }) {
+function SheetPreview({ page, document, fieldPermissions }: { page: CanvasPage; document: TemplateDesignerDocument; fieldPermissions?: PreviewFieldPermission }) {
   const columns = page.sheet.columnWidths.slice(0, page.sheet.columnCount).map((width) => Math.max(36, Math.min(260, width)));
   const rows = page.sheet.rowHeights.slice(0, page.sheet.rowCount).map((height) => Math.max(24, Math.min(180, height)));
   const sheetWidth = columns.reduce((sum, width) => sum + width, 0);
@@ -321,7 +324,7 @@ function SheetPreview({ page, document }: { page: CanvasPage; document: Template
               return <Box key={key} sx={{ gridColumn: `${col} / span ${spanCols}`, gridRow: `${row} / span ${spanRows}`, display: 'flex', alignItems: cell?.style?.verticalAlign === 'top' ? 'flex-start' : cell?.style?.verticalAlign === 'bottom' ? 'flex-end' : 'center', justifyContent: cell?.style?.textAlign === 'right' ? 'flex-end' : cell?.style?.textAlign === 'center' ? 'center' : 'flex-start', px: `${readNumber(cell?.style?.paddingLeft, 8)}px`, py: `${readNumber(cell?.style?.paddingTop, 4)}px`, borderLeft: cell?.border?.left ? `1px solid ${borderColor}` : col === 1 && page.sheet.showGridLines ? '1px solid #d9dee7' : 'none', borderTop: cell?.border?.top ? `1px solid ${borderColor}` : row === 1 && page.sheet.showGridLines ? '1px solid #d9dee7' : 'none', borderRight: cell?.border?.right ? `1px solid ${borderColor}` : page.sheet.showGridLines ? '1px solid #d9dee7' : '1px solid transparent', borderBottom: cell?.border?.bottom ? `1px solid ${borderColor}` : page.sheet.showGridLines ? '1px solid #d9dee7' : '1px solid transparent', bgcolor: cell?.style?.backgroundColor ? String(cell.style.backgroundColor) : '#fff', color: String(cell?.style?.color ?? '#303133'), fontSize: readNumber(cell?.style?.fontSize, 13), fontWeight: cell?.style?.fontWeight as string | number | undefined, fontStyle: cell?.style?.fontStyle as string | undefined, textDecoration: cell?.style?.textDecoration as string | undefined, fontFamily: cell?.style?.fontFamily as string | undefined, lineHeight: cell?.style?.lineHeight as string | number | undefined, whiteSpace: hasMultilineValue || cell?.style?.whiteSpace === 'normal' ? 'pre-wrap' : 'nowrap', overflow: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word' }}><Box component="span" sx={{ display: 'block', width: '100%', minWidth: 0, textAlign: cell?.style?.textAlign === 'right' ? 'right' : cell?.style?.textAlign === 'center' ? 'center' : 'left' }}>{cell?.value ?? ''}</Box></Box>;
             }))}
           </Box>
-          {nodeLayers.map(({ node, left, top, width, height }) => <Box key={node.id} sx={{ position: 'absolute', left: left + 3, top: top + 3, width: Math.max(0, width - 6), height: Math.max(0, height - 6), pointerEvents: 'none', overflow: 'hidden' }}><PreviewField node={node} document={document} /></Box>)}
+          {nodeLayers.map(({ node, left, top, width, height }) => <Box key={node.id} sx={{ position: 'absolute', left: left + 3, top: top + 3, width: Math.max(0, width - 6), height: Math.max(0, height - 6), pointerEvents: 'none', overflow: 'hidden' }}><PreviewField node={node} document={document} fieldPermissions={fieldPermissions} /></Box>)}
           {page.images.map((image) => {
             const src = media.get(image.mediaId);
             return src ? <Box key={image.id} component="img" src={src} alt="" sx={{ position: 'absolute', left: image.layout.left, top: image.layout.top, width: image.layout.width, height: image.layout.height, objectFit: 'contain', pointerEvents: 'none' }} /> : null;
@@ -332,22 +335,22 @@ function SheetPreview({ page, document }: { page: CanvasPage; document: Template
   );
 }
 
-function FieldListPreview({ document }: { document: TemplateDesignerDocument }) {
+function FieldListPreview({ document, fieldPermissions }: { document: TemplateDesignerDocument; fieldPermissions?: PreviewFieldPermission }) {
   const groups = document.model.groups;
   const fields = document.model.fields.filter((field) => field.status === 'enabled');
   return <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', p: 3, bgcolor: '#f8fafc' }}><Box sx={{ maxWidth: 920, mx: 'auto', p: 3, bgcolor: '#fff', border: '1px solid #e4e7ed' }}>{groups.map((group) => {
     const groupFields = fields.filter((field) => (field.groupId ?? 'default-group') === group.id);
     if (!groupFields.length) return null;
-    return <Box key={group.id} sx={{ '& + &': { mt: 3 } }}><Typography sx={{ pb: 1, mb: 2, color: '#303133', fontSize: 15, fontWeight: 600, borderBottom: '1px solid #e4e7ed' }}>{group.name}</Typography><Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2 }}>{groupFields.map((field) => <Box key={field.id}><Typography sx={{ mb: 0.75, color: '#606266', fontSize: 13 }}>{field.name}</Typography><Box sx={{ minHeight: 36, px: 1, display: 'flex', alignItems: 'center', border: '1px solid #dcdfe6', color: '#a8abb2', fontSize: 13 }}>{field.type === 'datetime' ? '请选择日期' : field.type === 'singleSelect' || field.type === 'reference' ? '请选择' : '请输入'}</Box></Box>)}</Box></Box>;
+    return <Box key={group.id} sx={{ '& + &': { mt: 3 } }}><Typography sx={{ pb: 1, mb: 2, color: '#303133', fontSize: 15, fontWeight: 600, borderBottom: '1px solid #e4e7ed' }}>{group.name}</Typography><Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2 }}>{groupFields.map((field) => { const readOnly = fieldPermissions?.[field.id] === 'READ_ONLY'; return <Box key={field.id}><Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}><Typography sx={{ color: '#606266', fontSize: 13 }}>{field.name}</Typography>{fieldPermissions ? <Typography component="span" sx={{ color: readOnly ? '#8a96a3' : '#4d8bca', fontSize: 11 }}>{readOnly ? '只读' : '可编辑'}</Typography> : null}</Stack><Box sx={{ minHeight: 36, px: 1, display: 'flex', alignItems: 'center', border: `1px solid ${readOnly ? '#d9dee7' : '#c7d8e8'}`, bgcolor: readOnly ? '#f3f5f7' : '#fff', color: '#a8abb2', fontSize: 13 }}>{field.type === 'datetime' ? '请选择日期' : field.type === 'singleSelect' || field.type === 'reference' ? '请选择' : '请输入'}</Box></Box>; })}</Box></Box>;
   })}</Box></Box>;
 }
 
-export function FormCanvasPreview({ document }: { document: TemplateDesignerDocument }) {
+export function FormCanvasPreview({ document, fieldPermissions }: { document: TemplateDesignerDocument; fieldPermissions?: PreviewFieldPermission }) {
   const [pageId, setPageId] = useState(document.canvas.currentPageId);
   useEffect(() => setPageId(document.canvas.currentPageId), [document]);
   const page = document.canvas.pages.find((entry) => entry.id === pageId) ?? document.canvas.pages[0];
   const hasCanvasContent = Boolean(page && (Object.keys(page.cells).length || page.nodes.length || page.images.length));
-  return <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>{document.canvas.pages.length > 1 ? <Tabs value={page?.id ?? false} onChange={(_, value) => setPageId(value)} sx={{ minHeight: 40, px: 1.5, borderBottom: '1px solid #e4e7ed', '& .MuiTab-root': { minHeight: 40, minWidth: 88, textTransform: 'none', fontSize: 13 } }}>{document.canvas.pages.map((entry) => <Tab key={entry.id} value={entry.id} label={entry.name} />)}</Tabs> : null}{page && hasCanvasContent ? <SheetPreview page={page} document={document} /> : <FieldListPreview document={document} />}</Box>;
+  return <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>{document.canvas.pages.length > 1 ? <Tabs value={page?.id ?? false} onChange={(_, value) => setPageId(value)} sx={{ minHeight: 40, px: 1.5, borderBottom: '1px solid #e4e7ed', '& .MuiTab-root': { minHeight: 40, minWidth: 88, textTransform: 'none', fontSize: 13 } }}>{document.canvas.pages.map((entry) => <Tab key={entry.id} value={entry.id} label={entry.name} />)}</Tabs> : null}{page && hasCanvasContent ? <SheetPreview page={page} document={document} fieldPermissions={fieldPermissions} /> : <FieldListPreview document={document} fieldPermissions={fieldPermissions} />}</Box>;
 }
 
 export default function DhrTemplateWorkspaceDialog({

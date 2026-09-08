@@ -1,0 +1,54 @@
+knowledgeModelVersion: 0.3.12
+decisions:
+  - id: DEC-0034
+    title: 流程字段权限状态与表单渲染器对接契约
+    status: specified
+    visibility: internal
+    context: "provenance: user-confirmed；流程侧负责计算并输出字段权限状态，表单团队负责在统一渲染器和预览器中呈现只读或编辑效果；流程模块不复制表单渲染实现。"
+    decisionStatements:
+      - id: DEC-0034-01
+        statement: "provenance: user-confirmed；流程侧输出以表单模板版本 ID 和稳定 fieldId 为键的字段权限状态，权限值第一版仅允许 EDIT 和 READ_ONLY。"
+        status: specified
+        visibility: internal
+      - id: DEC-0034-02
+        statement: "provenance: user-confirmed；表单渲染器和 FormCanvasPreview 负责将字段权限状态映射为控件的编辑或只读表现，流程页面不实现第二套控件渲染器。"
+        status: specified
+        visibility: internal
+      - id: DEC-0034-03
+        statement: "provenance: user-confirmed；流程配置预览只用于表达配置结果，运行时表单服务仍必须重新校验表单版本、字段存在性和当前用户权限。"
+        status: specified
+        visibility: internal
+      - id: DEC-0034-04
+        statement: "provenance: inference；字段权限状态采用可扩展的数组对象结构，未知 fieldId 被忽略并记录诊断，不得改变其他字段状态。"
+        status: specified
+        visibility: internal
+    supersedes: []
+    evidenceIds: [evidence.form-process-field-permission-implementation, evidence.form-renderer-preview-current-input]
+    acceptanceScenarios:
+      - id: scenario.form-renderer-permission-state-edit
+        given: 流程侧输出某表单版本字段状态为 EDIT
+        when: 表单预览器接收该状态
+        then: 对应字段以可编辑控件呈现
+        evidenceIds: [evidence.form-renderer-preview-current-input]
+        evidenceRequirements: [表单渲染器组件测试]
+      - id: scenario.form-renderer-permission-state-readonly
+        given: 流程侧输出某表单版本字段状态为 READ_ONLY
+        when: 表单预览器接收该状态
+        then: 对应字段以只读方式呈现且不允许修改
+        evidenceIds: [evidence.form-renderer-preview-current-input]
+        evidenceRequirements: [表单渲染器组件测试]
+      - id: scenario.form-renderer-version-mismatch
+        given: 权限状态的表单版本与当前渲染表单版本不一致
+        when: 表单服务准备渲染或提交
+        then: 拒绝使用不匹配状态并返回可观测错误
+        evidenceIds: []
+        evidenceRequirements: [运行时契约测试]
+    implementationDiscrepancies:
+      - id: discrepancy.form-renderer-permission-state-not-integrated
+        status: accepted
+        severity: high
+        visibility: internal
+        path: gmp-platform/frontend/src/components/form-renderer/FormCanvasPreview.tsx
+        lineHint: 1
+        summary: "provenance: original-evidence；当前预览器尚未接收字段权限状态；流程侧适配器与表单渲染器接入仍待实现。"
+        evidenceIds: [evidence.form-renderer-preview-current-input]

@@ -84,6 +84,18 @@ terms:
     aliases: [表单流程绑定, 表单流程配置版本]
     status: specified
     visibility: internal
+  - id: term.form-process-version-reference
+    name: 表单流程版本引用
+    definition: 作业流程版本的表单填报节点对某个已发布表单流程版本的固定配置引用；引用随所属作业流程版本冻结，不因表单流程后续升版自动改变。
+    aliases: [流程版本引用, 表单流程引用]
+    status: implemented
+    visibility: internal
+  - id: term.form-process-version-usage-projection
+    name: 表单流程版本使用投影
+    definition: 从作业流程图节点配置派生的可查询引用关系，用于在表单流程侧查看哪些作业流程版本正在使用某流程版本；投影由保存作业流程图时重建，不是独立维护的业务事实来源。
+    aliases: [流程使用情况, 版本引用投影]
+    status: implemented
+    visibility: internal
   - id: term.form-process-field-slot
     name: 表单流程字段槽位
     definition: 历史方案中表单流程模板内代表稳定业务含义的字段契约；当前方案不再创建或配置该对象，仅保留用于读取历史配置和追溯旧决策。
@@ -110,7 +122,7 @@ terms:
     visibility: internal
   - id: term.form-process-subject
     name: 表单流程主体
-    definition: 表单流程节点上可选配置的填报人或审批参与者来源及其解析结果的权限主体；同一流程可配置多个填报主体，审批主体支持当前选择器提供的主体来源。未配置主体不代表无人可操作，而代表在当前单租户内对已认证用户开放对应操作。
+    definition: 表单流程节点上可选配置的填报人或审批参与者来源；多个主体可被放入同一个权限配置组，由组统一设置字段权限。未配置主体不代表无人可操作，而代表在当前单租户内对已认证用户开放对应操作。
     aliases: [填报主体, 审批主体, 表单流程参与主体]
     status: specified
     visibility: internal
@@ -164,8 +176,14 @@ terms:
     visibility: internal
   - id: term.form-process-subject-default-permission
     name: 主体默认字段权限
-    definition: 表单流程节点为一个主体设置的统一字段权限，第一版只有全部可编辑和全部只读两种选择；未配置字段例外时直接作为该主体的字段权限。
+    definition: 表单流程权限配置组设置的统一字段权限，第一版只有全部可编辑和全部只读两种选择；填报组内多个主体或审批节点内多个主体共享该默认权限，未配置字段例外时直接作为组内主体的字段权限。
     aliases: [默认权限, 主体默认权限]
+    status: specified
+    visibility: internal
+  - id: term.form-process-permission-group
+    name: 表单流程权限配置组
+    definition: 表单流程中统一设置字段权限的配置单元。填报阶段一个权限组可包含多个用户、部门或角色主体；审批阶段每个审批节点本身就是一个权限组，节点内多个审批主体共享该组权限。组权限包括全部可编辑或全部只读的默认权限，以及绑定具体表单后的字段例外。
+    aliases: [流程权限组, 填报权限组, 审批节点权限组]
     status: specified
     visibility: internal
   - id: term.form-template-field

@@ -1,0 +1,114 @@
+knowledgeModelVersion: 0.3.12
+decisions:
+  - id: DEC-0036
+    title: 表单流程版本引用治理与使用情况分析
+    status: implemented
+    visibility: internal
+    context: "provenance: user-confirmed；用户确认表单流程侧需要知道版本被哪些作业引用，同时作业流程发布后必须锁定表单流程版本。表单流程升版不自动改变已发布作业流程，草稿发现旧版时需要提醒并通过兼容性校验后受控升级；点击升级只修改当前画布草稿，不代替用户保存。表单流程本身可选，已被作业流程引用的表单流程禁止删除。普通入口只展示当前发布版本，历史已发布版本仅保留后续管理员维护口子。"
+    decisionStatements:
+      - id: DEC-0036-01
+        statement: "provenance: user-confirmed；作业流程表单填报节点保存具体表单流程版本引用，作业流程版本发布后该引用随流程配置快照冻结，不因表单流程后续升版自动改变。"
+        status: implemented
+        visibility: internal
+      - id: DEC-0036-01A
+        statement: "provenance: user-confirmed；作业流程表单填报节点必须绑定当前生效的表单模板版本，但表单流程本身可选；不需要审批流程时可以不配置表单流程并发布。只有实际绑定表单流程后，系统才校验该流程的字段权限、按钮事件和签名字段绑定；清除表单流程时同步清理绑定级配置。"
+        status: implemented
+        visibility: internal
+      - id: DEC-0036-02
+        statement: "provenance: user-confirmed；表单流程侧提供使用情况分析，可查看每个流程版本被哪些作业模板、作业流程版本、表单填报节点和表单版本引用，并区分作业流程草稿、当前发布和历史发布状态。"
+        status: implemented
+        visibility: internal
+      - id: DEC-0036-03
+        statement: "provenance: user-confirmed；表单流程版本使用情况是作业流程图配置的查询投影。系统保存作业流程图、创建继承草稿、发布或复制已发布版本时重建投影；流程图 nodesJson 仍是业务事实来源，投影不由用户手工维护。"
+        status: implemented
+        visibility: internal
+      - id: DEC-0036-04
+        statement: "provenance: user-confirmed；作业流程草稿引用的表单流程版本不再是当前发布版时，系统必须明确提醒用户已有新版，发布确认中也应提示；系统不得静默替换草稿引用。"
+        status: implemented
+        visibility: internal
+      - id: DEC-0036-05
+        statement: "provenance: user-confirmed；用户显式升级草稿引用时，目标版本必须是当前已发布表单流程版本，并先校验字段权限例外、按钮事件和签名字段绑定兼容性；不兼容时拒绝升级并返回具体原因。点击升级只修改当前画布草稿，不自动保存；用户显式保存草稿后才持久化引用并重建使用投影。"
+        status: implemented
+        visibility: internal
+      - id: DEC-0036-06
+        statement: "provenance: user-confirmed；普通配置入口只展示当前发布版本。后端暂时保留历史已发布版本可被显式引用的能力，为后续管理员级版本维护保留口子；未来开放该入口时必须补充专用权限、明确提示和审计记录。"
+        status: specified
+        visibility: internal
+      - id: DEC-0036-07
+        statement: "provenance: user-confirmed；已被任何作业流程版本中的表单填报节点引用的表单流程禁止删除；删除前必须先解除相关作业流程引用，保护已发布作业流程版本的可追溯性。"
+        status: implemented
+        visibility: internal
+    supersedes: [DEC-0023]
+    evidenceIds:
+      - evidence.production-form-process-user-confirmed-v5
+      - evidence.form-process-version-reference-implementation
+      - evidence.form-process-version-reference-migration
+      - evidence.form-process-version-usage-controller
+      - evidence.form-process-version-upgrade-controller
+      - evidence.form-process-version-reference-tests
+      - evidence.form-process-version-upgrade-tests
+      - evidence.form-process-version-usage-ui
+      - evidence.form-process-version-upgrade-ui
+      - evidence.form-process-optional-binding-controller
+      - evidence.form-process-delete-reference-guard
+      - evidence.form-process-delete-reference-guard-test
+    acceptanceScenarios:
+      - id: scenario.form-process-usage-projection-rebuilt-on-save
+        given: 作业流程草稿包含引用表单流程版本的表单填报节点
+        when: 用户保存、发布或复制作业流程图
+        then: 系统重建该作业版本的引用投影，已删除节点不再出现在使用情况中
+        evidenceIds: [evidence.form-process-version-reference-tests]
+        evidenceRequirements: [引用投影服务测试, 作业流程控制器测试]
+      - id: scenario.form-process-version-usage-view
+        given: 一个表单流程版本被多个作业流程版本引用
+        when: 用户在表单流程详情打开使用情况
+        then: 系统按流程版本展示引用它的作业、作业流程版本、填报节点、绑定表单和作业版本状态
+        evidenceIds: [evidence.form-process-version-usage-controller, evidence.form-process-version-usage-ui]
+        evidenceRequirements: [使用情况接口测试, 前端构建验证]
+      - id: scenario.work-draft-form-process-upgrade-available
+        given: 作业流程草稿引用的表单流程版本已经不是当前发布版
+        when: 用户打开草稿或准备发布
+        then: 系统明确提示已有新版，且不自动替换草稿引用
+        evidenceIds: [evidence.form-process-version-upgrade-ui]
+        evidenceRequirements: [旧版引用提示验证]
+      - id: scenario.work-draft-form-process-controlled-upgrade
+        given: 新版表单流程与当前字段权限和按钮事件绑定兼容
+        when: 用户确认升级
+        then: 当前画布中的草稿引用更新到当前发布版本，但系统不自动保存；用户点击保存草稿后才持久化并重建使用投影
+        evidenceIds: [evidence.form-process-version-upgrade-tests]
+        evidenceRequirements: [升级入口交互验证, 保存草稿控制器测试]
+      - id: scenario.work-draft-form-process-upgrade-incompatible
+        given: 新版表单流程删除了原按钮事件或权限主体
+        when: 用户确认升级
+        then: 系统拒绝静默升级并返回具体不兼容原因
+        evidenceIds: [evidence.form-process-version-upgrade-tests]
+        evidenceRequirements: [升级阻塞原因接口测试]
+      - id: scenario.form-entry-node-without-form-process-publishable
+        given: 作业流程表单填报节点已选择当前生效表单模板版本但未选择表单流程
+        when: 用户发布作业流程
+        then: 发布成功，不执行表单流程字段权限和按钮事件校验
+        evidenceIds: [evidence.form-process-optional-binding-controller]
+        evidenceRequirements: [无表单流程发布控制器测试]
+      - id: scenario.referenced-form-process-delete-forbidden
+        given: 一个表单流程版本已被作业流程版本中的表单填报节点引用
+        when: 用户尝试删除该表单流程
+        then: 系统拒绝删除并提示该流程已被作业流程引用
+        evidenceIds: [evidence.form-process-delete-reference-guard, evidence.form-process-delete-reference-guard-test]
+        evidenceRequirements: [删除阻断控制器测试]
+    implementationDiscrepancies:
+      - id: discrepancy.form-process-runtime-upgrade-not-implemented
+        status: accepted
+        severity: high
+        visibility: internal
+        path: docs/knowledge/open-questions.yaml
+        lineHint: 1
+        summary: "provenance: original-evidence；本决策只覆盖配置层引用治理、影响分析和草稿升级，不表示生产作业实例、表单流程实例、运行时字段权限解析或外层同步推进已经实现。"
+        evidenceIds: [evidence.ai-transaction-runtime-architecture, evidence.production-form-process-user-confirmed-v5]
+      - id: discrepancy.form-process-admin-historical-maintenance-not-implemented
+        status: accepted
+        severity: medium
+        visibility: internal
+        path: gmp-platform/frontend/src/pages/workflow-center/WorkTemplateEditor.tsx
+        lineHint: 1
+        summary: "provenance: user-confirmed；当前仅为后续管理员历史版本维护保留后端能力，尚未提供专用管理员入口、历史版本选择权限、差异展示或升级原因审计。"
+        evidenceIds: [evidence.production-form-process-user-confirmed-v5]

@@ -92,6 +92,13 @@ type ProposedFormAccess = {
 };
 ```
 
+流程侧已提供无副作用的字段权限适配器
+[`fieldPermissions.ts`](../../gmp-platform/frontend/src/components/form-access/fieldPermissions.ts)。
+表单团队可以复用 `resolveFieldPermissions(fields, rule)` 生成完整字段状态，再将
+`states` 映射到渲染器；`toFieldPermissionMap` 可用于需要按 `fieldId` 查询的渲染器。
+适配器只识别当前字段目录中的稳定 ID，返回的 `unknownFieldIds` 必须记录为配置诊断，
+不能把未知字段当成开放权限。它不负责主体解析、授权或表单控件渲染。
+
 只在权限成功加载后向渲染器提供该对象。建议 `formReadOnly` 优先，否则使用字段权限，缺项继承 `defaultPermission`。业务端可以只传少量覆盖项。该对象不是审批授权凭据，不允许客户端用它绕过服务端校验；端点、响应包、权限修订号和错误码尚未定义。
 
 ## 5. 已有配置数据如何交接
