@@ -356,6 +356,85 @@ class WorkTemplateControllerTest {
     }
 
     @Test
+    void rejectsANonSignatureFieldAsSignatureTarget() {
+        WorkflowDefinition work = WorkflowDefinition.builder().id(101L).name("签名字段类型作业").type("WORK").build();
+        WorkflowDefinitionVersion draft = draftVersion(201L,
+                "[{\"id\":\"start\",\"data\":{\"kind\":\"START\"}},"
+                        + "{\"id\":\"form\",\"data\":{\"kind\":\"FORM\",\"config\":{\"formTemplateVersionId\":\"702\",\"formProcessVersionId\":\"901\",\"eventBindings\":{\"start:event-1\":{\"fieldId\":\"remark\"}}}}},"
+                        + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]");
+        WorkflowDefinitionVersion process = WorkflowDefinitionVersion.builder().id(901L).definitionId(902L)
+                .status("PUBLISHED").isCurrent(true)
+                .nodesJson("[{\"id\":\"start\",\"data\":{\"kind\":\"START\",\"config\":{"
+                        + "\"buttonEvents\":[{\"id\":\"event-1\",\"event\":\"BEFORE\",\"action\":\"SUBMIT\",\"builtin\":\"FILL_SIGN_FIELD\",\"signatureMethod\":\"ACCOUNT_PASSWORD\"}]}}},"
+                        + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]")
+                .build();
+        when(workflowDefinitionRepository.findById(101L)).thenReturn(Optional.of(work));
+        when(versionRepository.findById(201L)).thenReturn(Optional.of(draft));
+        when(versionRepository.findById(901L)).thenReturn(Optional.of(process));
+        when(workflowDefinitionRepository.findById(902L)).thenReturn(Optional.of(
+                WorkflowDefinition.builder().id(902L).type("FORM_PROCESS").name("表单流程").build()));
+        when(formTemplateVersionRepository.findById(702L)).thenReturn(Optional.of(
+                FormTemplateVersion.builder().id(702L).status("DRAFT")
+                        .modelDesignJson("{\"fields\":[{\"id\":\"remark\",\"type\":\"text\"}]}").build()));
+
+        assertThatThrownBy(() -> controller.publishVersion(101L, 201L))
+                .hasMessageContaining("签名类型字段");
+    }
+
+    @Test
+    void reportsTheExactNodeAndButtonWhenASignatureTargetIsMissing() {
+        WorkflowDefinition work = WorkflowDefinition.builder().id(101L).name("缺失签名字段作业").type("WORK").build();
+        WorkflowDefinitionVersion draft = draftVersion(201L,
+                "[{\"id\":\"start\",\"data\":{\"kind\":\"START\"}},"
+                        + "{\"id\":\"form\",\"data\":{\"kind\":\"FORM\",\"label\":\"表单填写2123\",\"config\":{\"formTemplateVersionId\":\"702\",\"formProcessVersionId\":\"901\",\"eventBindings\":{}}}},"
+                        + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]");
+        WorkflowDefinitionVersion process = WorkflowDefinitionVersion.builder().id(901L).definitionId(902L)
+                .status("PUBLISHED").isCurrent(true)
+                .nodesJson("[{\"id\":\"start\",\"data\":{\"kind\":\"START\",\"label\":\"填报\",\"config\":{"
+                        + "\"buttonEvents\":[{\"id\":\"event-1\",\"event\":\"BEFORE\",\"action\":\"SUBMIT\",\"builtin\":\"FILL_SIGN_FIELD\",\"signatureMethod\":\"ACCOUNT_PASSWORD\"}]}}},"
+                        + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]")
+                .build();
+        when(workflowDefinitionRepository.findById(101L)).thenReturn(Optional.of(work));
+        when(versionRepository.findById(201L)).thenReturn(Optional.of(draft));
+        when(versionRepository.findById(901L)).thenReturn(Optional.of(process));
+        when(workflowDefinitionRepository.findById(902L)).thenReturn(Optional.of(
+                WorkflowDefinition.builder().id(902L).type("FORM_PROCESS").name("表单流程").build()));
+
+        assertThatThrownBy(() -> controller.publishVersion(101L, 201L))
+                .hasMessageContaining("表单填写节点“表单填写2123”")
+                .hasMessageContaining("填报 · 提交")
+                .hasMessageContaining("已开启“填充签名字段”");
+    }
+
+    @Test
+    void allowsASignatureFieldAsSignatureTarget() {
+        WorkflowDefinition work = WorkflowDefinition.builder().id(101L).name("签名字段目标作业").type("WORK").build();
+        WorkflowDefinitionVersion draft = draftVersion(201L,
+                "[{\"id\":\"start\",\"data\":{\"kind\":\"START\"}},"
+                        + "{\"id\":\"form\",\"data\":{\"kind\":\"FORM\",\"config\":{\"formTemplateVersionId\":\"702\",\"formProcessVersionId\":\"901\",\"eventBindings\":{\"start:event-1\":{\"fieldId\":\"signature\"}}}}},"
+                        + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]");
+        WorkflowDefinitionVersion process = WorkflowDefinitionVersion.builder().id(901L).definitionId(902L)
+                .status("PUBLISHED").isCurrent(true)
+                .nodesJson("[{\"id\":\"start\",\"data\":{\"kind\":\"START\",\"config\":{"
+                        + "\"buttonEvents\":[{\"id\":\"event-1\",\"event\":\"BEFORE\",\"action\":\"SUBMIT\",\"builtin\":\"FILL_SIGN_FIELD\",\"signatureMethod\":\"ACCOUNT_PASSWORD\"}]}}},"
+                        + "{\"id\":\"end\",\"data\":{\"kind\":\"END\"}}]")
+                .build();
+        when(workflowDefinitionRepository.findById(101L)).thenReturn(Optional.of(work));
+        when(versionRepository.findById(201L)).thenReturn(Optional.of(draft));
+        when(versionRepository.findById(901L)).thenReturn(Optional.of(process));
+        when(workflowDefinitionRepository.findById(902L)).thenReturn(Optional.of(
+                WorkflowDefinition.builder().id(902L).type("FORM_PROCESS").name("表单流程").build()));
+        when(formTemplateVersionRepository.findById(702L)).thenReturn(Optional.of(
+                FormTemplateVersion.builder().id(702L).status("DRAFT")
+                        .modelDesignJson("{\"fields\":[{\"id\":\"signature\",\"type\":\"signature\"}]}").build()));
+        when(versionRepository.findByDefinitionIdOrderByVersionNumberDesc(101L)).thenReturn(List.of(draft));
+        when(versionRepository.save(any(WorkflowDefinitionVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(idGenerator.nextId()).thenReturn(801L, 802L, 803L);
+
+        assertThat(controller.publishVersion(101L, 201L).getData().getStatus()).isEqualTo("PUBLISHED");
+    }
+
+    @Test
     void allowsPublishingLegacyFlowFieldConfigurationWithoutMapping() {
         WorkflowDefinition work = WorkflowDefinition.builder().id(101L).name("历史流程字段作业").type("WORK").build();
         WorkflowDefinitionVersion draft = draftVersion(201L,
@@ -419,7 +498,7 @@ class WorkTemplateControllerTest {
         when(versionRepository.findById(901L)).thenReturn(Optional.of(process));
         when(formTemplateVersionRepository.findById(702L)).thenReturn(Optional.of(
                 FormTemplateVersion.builder().id(702L).status("DRAFT")
-                        .modelDesignJson("{\"fields\":[{\"id\":\"signature\"}]}").build()));
+                        .modelDesignJson("{\"fields\":[{\"id\":\"signature\",\"type\":\"signature\"}]}").build()));
         when(versionRepository.findByDefinitionIdOrderByVersionNumberDesc(101L)).thenReturn(List.of(draft));
         when(versionRepository.save(any(WorkflowDefinitionVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(idGenerator.nextId()).thenReturn(801L, 802L, 803L);

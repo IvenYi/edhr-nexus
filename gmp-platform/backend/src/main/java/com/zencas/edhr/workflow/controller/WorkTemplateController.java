@@ -775,7 +775,12 @@ public class WorkTemplateController {
     private void validateFormProcessFieldPermissions(JsonNode formNode, String processNodesJson) {
         JsonNode permissions = formNode.path("data").path("config").path("fieldPermissions");
         Set<String> fieldIds = resolveReferencedFormFieldIds(formNode.path("data").path("config").path("formTemplateVersionId").asText());
-        validateFormProcessEventBindings(formNode.path("data").path("config").path("eventBindings"), processNodesJson, fieldIds);
+        validateFormProcessEventBindings(
+                formNode.path("data").path("config").path("eventBindings"),
+                processNodesJson,
+                fieldIds,
+                formNode.path("data").path("config").path("formTemplateVersionId").asText(),
+                formNode.path("data").path("label").asText("表单填写"));
             if (permissions.isMissingNode() || permissions.isNull()) return;
             if (!permissions.isObject()) {
                 throw new com.zencas.edhr.common.exception.BusinessException(
@@ -820,7 +825,12 @@ public class WorkTemplateController {
             });
     }
 
-    private void validateFormProcessEventBindings(JsonNode bindings, String processNodesJson, Set<String> fieldIds) {
+    private void validateFormProcessEventBindings(
+            JsonNode bindings,
+            String processNodesJson,
+            Set<String> fieldIds,
+            String formTemplateVersionId,
+            String formNodeLabel) {
         if (bindings == null || bindings.isMissingNode() || bindings.isNull()) return;
         if (!bindings.isObject()) {
             throw new com.zencas.edhr.common.exception.BusinessException(
@@ -828,19 +838,27 @@ public class WorkTemplateController {
                     "表单填写节点内置事件配置格式不正确");
         }
         Set<String> eventKeys = resolveFormProcessBuiltinEventKeys(processNodesJson);
+        Map<String, FormProcessEventDescriptor> events = resolveFormProcessBuiltinEvents(processNodesJson);
+        Set<String> signatureFieldIds = resolveReferencedSignatureFormFieldIds(formTemplateVersionId);
         bindings.fields().forEachRemaining(entry -> {
             if (!eventKeys.contains(entry.getKey())) {
                 throw new com.zencas.edhr.common.exception.BusinessException(
                         com.zencas.edhr.common.exception.ErrorCode.WF_002,
-                        "表单填写节点引用了不存在的内置事件");
+                        "表单填写节点“" + formNodeLabel + "”引用了不存在的内置事件");
             }
+            FormProcessEventDescriptor event = events.get(entry.getKey());
             JsonNode binding = entry.getValue();
             JsonNode fieldId = binding == null ? null : binding.get("fieldId");
             if (binding == null || !binding.isObject() || fieldId == null || !fieldId.isTextual()
                     || fieldId.asText().trim().isBlank() || !fieldIds.contains(fieldId.asText().trim())) {
                 throw new com.zencas.edhr.common.exception.BusinessException(
                         com.zencas.edhr.common.exception.ErrorCode.WF_002,
-                        "表单填写节点内置事件目标字段不存在");
+                        "表单填写节点“" + formNodeLabel + "”的“" + event.displayName() + "”按钮绑定的目标字段不存在");
+            }
+            if (!signatureFieldIds.contains(fieldId.asText().trim())) {
+                throw new com.zencas.edhr.common.exception.BusinessException(
+                        com.zencas.edhr.common.exception.ErrorCode.WF_002,
+                        "表单填写节点“" + formNodeLabel + "”的“" + event.displayName() + "”按钮只能绑定签名类型字段");
             }
         });
         for (String eventKey : eventKeys) {
@@ -848,20 +866,26 @@ public class WorkTemplateController {
             if (binding == null || !binding.isObject()
                     || !binding.path("fieldId").isTextual()
                     || binding.path("fieldId").asText().trim().isBlank()) {
+                FormProcessEventDescriptor event = events.get(eventKey);
                 throw new com.zencas.edhr.common.exception.BusinessException(
                         com.zencas.edhr.common.exception.ErrorCode.WF_002,
-                        "每个电子签名事件都必须绑定目标签名字段");
+                        "表单填写节点“" + formNodeLabel + "”的“" + event.displayName() + "”按钮已开启“填充签名字段”，请先绑定签名类型字段");
             }
         }
     }
 
     private Set<String> resolveFormProcessBuiltinEventKeys(String nodesJson) {
-        Set<String> eventKeys = new HashSet<>();
+        return resolveFormProcessBuiltinEvents(nodesJson).keySet();
+    }
+
+    private Map<String, FormProcessEventDescriptor> resolveFormProcessBuiltinEvents(String nodesJson) {
+        Map<String, FormProcessEventDescriptor> eventsByKey = new LinkedHashMap<>();
         try {
             JsonNode nodes = FLOW_GRAPH_OBJECT_MAPPER.readTree(nodesJson == null ? "[]" : nodesJson);
-            if (!nodes.isArray()) return eventKeys;
+            if (!nodes.isArray()) return eventsByKey;
             for (JsonNode node : nodes) {
                 String nodeId = node.path("id").asText("").trim();
+                String nodeLabel = node.path("data").path("label").asText("流程节点");
                 JsonNode events = node.path("data").path("config").path("buttonEvents");
                 if (nodeId.isBlank() || !events.isArray()) continue;
                 for (JsonNode event : events) {
@@ -881,14 +905,17 @@ public class WorkTemplateController {
                             && "BEFORE".equals(phase)
                             && ("SAVE".equals(action) || "SUBMIT".equals(action) || "APPROVE".equals(action) || "RETURN".equals(action))) {
                         String eventId = event.path("id").asText("").trim();
-                        if (!eventId.isBlank()) eventKeys.add(nodeId + ":" + eventId);
+                        if (!eventId.isBlank()) {
+                            eventsByKey.put(nodeId + ":" + eventId,
+                                    new FormProcessEventDescriptor(nodeLabel, action));
+                        }
                     }
                 }
             }
         } catch (Exception ignored) {
             // The referenced form process graph is structurally validated before this method.
         }
-        return eventKeys;
+        return eventsByKey;
     }
 
     private Set<String> resolveFormProcessSubjectIds(String nodesJson) {
@@ -965,6 +992,30 @@ public class WorkTemplateController {
         } catch (Exception ignored) {
             // The referenced form version is validated separately; an unreadable
             // field catalog will be reported as an unmapped slot when required.
+        }
+        return fieldIds;
+    }
+
+    private Set<String> resolveReferencedSignatureFormFieldIds(String formVersionId) {
+        Set<String> fieldIds = new java.util.HashSet<>();
+        if (formVersionId == null || formVersionId.isBlank()) return fieldIds;
+        try {
+            FormTemplateVersion version = formTemplateVersionRepository.findById(Long.valueOf(formVersionId)).orElse(null);
+            if (version == null || version.getModelDesignJson() == null) return fieldIds;
+            JsonNode model = FLOW_GRAPH_OBJECT_MAPPER.readTree(version.getModelDesignJson());
+            JsonNode fields = model.path("payload").path("fields");
+            if (!fields.isArray()) fields = model.path("fields");
+            if (fields.isArray()) for (JsonNode field : fields) {
+                String type = field.path("type").asText("").toLowerCase().replaceAll("[ _-]", "");
+                if (!Set.of("signature", "electronicsignature", "sign").contains(type)) continue;
+                String id = field.path("id").asText("").trim();
+                String code = field.path("code").asText("").trim();
+                if (!id.isBlank()) fieldIds.add(id);
+                if (!code.isBlank()) fieldIds.add(code);
+            }
+        } catch (Exception ignored) {
+            // The referenced form version is validated separately; unreadable
+            // metadata means there is no provable signature field to bind.
         }
         return fieldIds;
     }
@@ -1295,6 +1346,19 @@ public class WorkTemplateController {
             Boolean outdated,
             Boolean upgradeAvailable,
             List<String> upgradeBlockers) {
+    }
+
+    private record FormProcessEventDescriptor(String nodeLabel, String action) {
+        String displayName() {
+            String actionLabel = switch (action == null ? "" : action) {
+                case "SAVE" -> "保存";
+                case "SUBMIT" -> "提交";
+                case "APPROVE" -> "审批";
+                case "RETURN" -> "退回";
+                default -> action;
+            };
+            return nodeLabel + " · " + actionLabel;
+        }
     }
 
     public record WorkApplicabilityRuleSummary(

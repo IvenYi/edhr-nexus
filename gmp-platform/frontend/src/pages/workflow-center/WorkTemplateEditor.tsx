@@ -22,6 +22,8 @@ import {
   ChevronRight,
   Close,
   DeleteOutline,
+  DrawOutlined,
+  EditOutlined,
   ExpandMore,
   FactCheckOutlined,
   FolderOutlined,
@@ -34,6 +36,7 @@ import {
   RedoOutlined,
   Search,
   UndoOutlined,
+  VisibilityOffOutlined,
   VisibilityOutlined,
 } from "@mui/icons-material";
 import {
@@ -71,6 +74,7 @@ import {
   IconButton,
   InputAdornment,
   InputLabel,
+  Menu,
   MenuItem,
   Paper,
   Popper,
@@ -104,6 +108,8 @@ import {
 import { parseReactTemplateDesignerDocument } from "@/pages/master-data/template-designer-react/utils/document";
 import {
   FormCanvasPreview,
+  type PreviewFieldAction,
+  type PreviewFieldInteraction,
   type PreviewFieldPermission,
 } from "@/pages/master-data/DhrTemplateWorkspaceDialog";
 import {
@@ -483,6 +489,13 @@ function isEffectiveFormVersion(status: string | null | undefined) {
       .trim()
       .toUpperCase() === "ACTIVE"
   );
+}
+
+function isSignatureFieldType(type?: string) {
+  const normalized = String(type ?? "")
+    .toLowerCase()
+    .replace(/[ _-]/g, "");
+  return ["signature", "electronicsignature", "sign"].includes(normalized);
 }
 
 const HISTORY_LIMIT = 50;
@@ -872,8 +885,7 @@ function validateFlowGraphForPublish(
   const hasConfigurationError = Object.keys(nodeErrors).some((nodeId) => {
     const message = nodeErrors[nodeId];
     return (
-      message === "请选择生效表单版本" ||
-      message === "请配置所有条件分支规则"
+      message === "请选择生效表单版本" || message === "请配置所有条件分支规则"
     );
   });
   const message = hasConfigurationError
@@ -1933,6 +1945,11 @@ function FormPermissionConfigDialog({
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(
     subjects[0]?.id ?? null,
   );
+  const [highlightFieldId, setHighlightFieldId] = useState<string | null>(null);
+  const [signatureMenu, setSignatureMenu] = useState<{
+    anchor: HTMLElement;
+    fieldId: string;
+  } | null>(null);
   useEffect(() => {
     if (!open) return;
     setDraft(permissions ?? {});
@@ -1987,6 +2004,77 @@ function FormPermissionConfigDialog({
       [selectedSubject.id]: { ...selectedRule, ...patch },
     }));
   };
+  const toggleExceptionField = (fieldId: string) => {
+    if (!selectedSubject) return;
+    const nextExceptions = exceptions.includes(fieldId)
+      ? exceptions.filter((id) => id !== fieldId)
+      : [...exceptions, fieldId];
+    updateRule({
+      editableFieldIds: defaultPermission === "READ_ONLY" ? nextExceptions : [],
+      readOnlyFieldIds: defaultPermission === "EDIT" ? nextExceptions : [],
+    });
+  };
+  const bindSignatureField = (fieldId: string, event: ProcessBuiltinEvent) => {
+    setEventDraft((current) => ({
+      ...current,
+      [event.key]: { fieldId },
+    }));
+  };
+  const fieldInteraction = useMemo<PreviewFieldInteraction>(
+    () => ({
+      highlightFieldId,
+      onFieldHover: setHighlightFieldId,
+      actionsForField: (field) => {
+        const actions: PreviewFieldAction[] = [];
+        if (editable && selectedSubject) {
+          const isException = exceptions.includes(field.id);
+          actions.push({
+            key: "toggle-permission",
+            title:
+              defaultPermission === "EDIT"
+                ? isException
+                  ? "恢复可编辑"
+                  : "设为只读"
+                : isException
+                  ? "恢复只读"
+                  : "设为编辑",
+            icon: isException ? (
+              defaultPermission === "EDIT" ? (
+                <EditOutlined fontSize="small" />
+              ) : (
+                <VisibilityOffOutlined fontSize="small" />
+              )
+            ) : defaultPermission === "EDIT" ? (
+              <VisibilityOffOutlined fontSize="small" />
+            ) : (
+              <EditOutlined fontSize="small" />
+            ),
+            onClick: () => toggleExceptionField(field.id),
+          });
+        }
+        if (editable && events.length && isSignatureFieldType(field.type)) {
+          actions.push({
+            key: "bind-signature",
+            title: events.length === 1 ? "填充该字段" : "选择按钮填充该字段",
+            icon: <DrawOutlined fontSize="small" />,
+            onClick: (_fieldId, anchor) => {
+              if (events.length === 1) bindSignatureField(field.id, events[0]);
+              else setSignatureMenu({ anchor, fieldId: field.id });
+            },
+          });
+        }
+        return actions;
+      },
+    }),
+    [
+      defaultPermission,
+      editable,
+      events,
+      exceptions,
+      highlightFieldId,
+      selectedSubject,
+    ],
+  );
   return (
     <AppDialog
       open={open}
@@ -2054,6 +2142,7 @@ function FormPermissionConfigDialog({
             <FormCanvasPreview
               document={document}
               fieldPermissions={previewPermissions}
+              interaction={fieldInteraction}
             />
           ) : (
             <Box
@@ -2192,6 +2281,7 @@ function FormPermissionConfigDialog({
                     )}
                     getOptionLabel={(option) => option.label}
                     disabled={!editable || !fields.length}
+                    onClose={() => setHighlightFieldId(null)}
                     onChange={(_, next) =>
                       updateRule({
                         editableFieldIds:
@@ -2204,6 +2294,15 @@ function FormPermissionConfigDialog({
                             : [],
                       })
                     }
+                    renderOption={(props, option) => (
+                      <li
+                        {...props}
+                        onMouseEnter={() => setHighlightFieldId(option.id)}
+                        onMouseLeave={() => setHighlightFieldId(null)}
+                      >
+                        {option.label}
+                      </li>
+                    )}
                     renderInput={(params) => (
                       <TextField
                         {...params}
@@ -2235,6 +2334,7 @@ function FormPermissionConfigDialog({
                     bindings={eventDraft}
                     editable={editable}
                     loading={false}
+                    onFieldHover={setHighlightFieldId}
                     onChange={setEventDraft}
                   />
                 </Box>
@@ -2243,6 +2343,31 @@ function FormPermissionConfigDialog({
           </Stack>
         </Box>
       </DialogContent>
+      <Menu
+        anchorEl={signatureMenu?.anchor}
+        open={Boolean(signatureMenu)}
+        onClose={() => setSignatureMenu(null)}
+      >
+        {events.map((event) => (
+          <MenuItem
+            key={event.key}
+            onClick={() => {
+              if (signatureMenu)
+                bindSignatureField(signatureMenu.fieldId, event);
+              setSignatureMenu(null);
+            }}
+          >
+            {event.nodeLabel} ·{" "}
+            {event.action === "SAVE"
+              ? "保存"
+              : event.action === "SUBMIT"
+                ? "提交"
+                : event.action === "APPROVE"
+                  ? "审批"
+                  : "退回"}
+          </MenuItem>
+        ))}
+      </Menu>
       <DialogActions>
         <Button onClick={onClose}>取消</Button>
         <Button
@@ -2264,6 +2389,7 @@ function FormProcessEventBindingEditor({
   compact = false,
   editable,
   loading,
+  onFieldHover,
   onChange,
 }: {
   events: ProcessBuiltinEvent[];
@@ -2272,6 +2398,7 @@ function FormProcessEventBindingEditor({
   compact?: boolean;
   editable: boolean;
   loading: boolean;
+  onFieldHover?: (fieldId: string | null) => void;
   onChange: (bindings: Record<string, { fieldId?: string }>) => void;
 }) {
   if (loading) {
@@ -2282,18 +2409,13 @@ function FormProcessEventBindingEditor({
     );
   }
   if (events.length === 0) return null;
-  const signatureFields = fields.filter((field) => {
-    const type = String(field.type ?? "")
-      .toLowerCase()
-      .replace(/[ _-]/g, "");
-    return ["signature", "electronicsignature", "sign"].includes(type);
-  });
-  const fieldOptions = (signatureFields.length ? signatureFields : fields).map(
-    (field) => ({
-      label: `${field.name} · ${field.code}`,
-      id: field.id,
-    }),
+  const signatureFields = fields.filter((field) =>
+    isSignatureFieldType(field.type),
   );
+  const fieldOptions = signatureFields.map((field) => ({
+    label: `${field.name} · ${field.code}`,
+    id: field.id,
+  }));
   const eventGroups = Array.from(
     events.reduce((groups, event) => {
       const current = groups.get(event.nodeId) ?? [];
@@ -2395,6 +2517,7 @@ function FormProcessEventBindingEditor({
                       value={selected}
                       getOptionLabel={(option) => option.label}
                       disabled={!editable || fieldOptions.length === 0}
+                      onClose={() => onFieldHover?.(null)}
                       onChange={(_, next) => {
                         const nextBindings = { ...bindings };
                         if (next)
@@ -2402,6 +2525,15 @@ function FormProcessEventBindingEditor({
                         else delete nextBindings[event.key];
                         onChange(nextBindings);
                       }}
+                      renderOption={(props, option) => (
+                        <li
+                          {...props}
+                          onMouseEnter={() => onFieldHover?.(option.id)}
+                          onMouseLeave={() => onFieldHover?.(null)}
+                        >
+                          {option.label}
+                        </li>
+                      )}
                       renderInput={(params) => (
                         <TextField
                           {...params}
@@ -2422,7 +2554,7 @@ function FormProcessEventBindingEditor({
           variant="caption"
           sx={{ display: "block", mt: 1, color: "#c62828" }}
         >
-          当前表单没有可绑定的字段。
+          当前表单没有签名类型字段，无法配置签名填充。
         </Typography>
       ) : null}
     </Box>

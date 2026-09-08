@@ -18,6 +18,10 @@ decisions:
         statement: "provenance: user-confirmed；签署事件固定使用账户密码并在动作执行前处理；是否填充签名字段由事件单独选择，选择填充时才在作业流程节点绑定字段。"
         status: specified
         visibility: internal
+      - id: DEC-0028-03A
+        statement: "provenance: user-confirmed；选择填充签名字段时，目标字段只能是所选表单版本中的签名类型字段；普通文本等非签名字段不能作为签名填充目标，配置界面和发布校验都必须执行该限制。"
+        status: implemented
+        visibility: internal
       - id: DEC-0028-04
         statement: "provenance: user-confirmed；电子签名要求保存在可复用表单流程版本的按钮配置中，签名字段绑定仍只保存在作业流程表单填写节点，不回写表单流程版本。"
         status: specified

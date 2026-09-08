@@ -1088,6 +1088,9 @@ rules:
         - fact: formProcessBinding.eventBinding.fieldId
           operator: exists-in
           value: formProcessBinding.formTemplateVersion.fields
+        - fact: formProcessBinding.eventBinding.field.type
+          operator: in
+          value: [signature, electronicSignature, sign]
     result:
       type: persist-form-required-configuration
       target: productionWorkFormEntryNode.eventBindings
@@ -1097,7 +1100,7 @@ rules:
       bindingScoped: true
       processVersionWriteBack: false
       invalidBindingAction: block
-    explanation: 作业流程表单填写节点必须先绑定一个已发布表单流程版本和具体表单模板版本，再把流程版本中声明的 FILL_SIGN_FIELD 事件绑定到所选表单真实存在的稳定 fieldId。字段绑定属于当前作业节点，不回写可复用表单流程版本；当前仅定义配置与校验，不代表运行时签名写入已实现。
+    explanation: 作业流程表单填写节点必须先绑定一个已发布表单流程版本和具体表单模板版本，再把流程版本中声明的 FILL_SIGN_FIELD 事件绑定到所选表单真实存在的稳定 fieldId。字段绑定属于当前作业节点，不回写可复用表单流程版本；目标字段必须是签名类型字段，普通文本等非签名字段不能作为填充目标。当前仅定义配置与校验，不代表运行时签名写入已实现。
     evidenceIds: [evidence.production-form-process-buttons-events-v2]
   - id: rule.production-work.form-process-reference-projection
     name: 作业流程保存时重建表单流程版本引用投影

@@ -27,7 +27,7 @@ decisions:
         status: implemented
         visibility: internal
       - id: DEC-0036-05
-        statement: "provenance: user-confirmed；用户显式升级草稿引用时，目标版本必须是当前已发布表单流程版本，并先校验字段权限例外、按钮事件和签名字段绑定兼容性；不兼容时拒绝升级并返回具体原因。点击升级只修改当前画布草稿，不自动保存；用户显式保存草稿后才持久化引用并重建使用投影。"
+        statement: "provenance: user-confirmed；用户显式升级草稿引用时，目标版本必须是当前已发布表单流程版本，并先校验字段权限例外、按钮事件和签名字段绑定兼容性；不兼容时拒绝升级并返回具体原因。签名字段绑定目标还必须是签名类型字段。点击升级只修改当前画布草稿，不自动保存；用户显式保存草稿后才持久化引用并重建使用投影。"
         status: implemented
         visibility: internal
       - id: DEC-0036-06
