@@ -152,6 +152,7 @@ const theme = createTheme({
     MuiTableContainer: {
       styleOverrides: {
         root: {
+          containerType: 'inline-size',
           backgroundColor: '#ffffff',
           border: '1px solid #e4e7ed',
           borderRadius: 5,

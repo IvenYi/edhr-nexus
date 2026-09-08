@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
@@ -56,11 +57,11 @@ export default function InstanceList() {
           </TableHead>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={8} align="center"><CircularProgress size={24} /></TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={8} align="center"><CircularProgress size={24} /></TableStateCell></TableRow>
             ) : isError ? (
-              <TableRow><TableCell colSpan={8} align="center">加载失败</TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={8} align="center">加载失败</TableStateCell></TableRow>
             ) : content.length === 0 ? (
-              <TableRow><TableCell colSpan={8} align="center">暂无数据</TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={8} align="center">暂无数据</TableStateCell></TableRow>
             ) : (
               content.map((item) => (
                 <TableRow key={item.id}>

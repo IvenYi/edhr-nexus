@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Add, DeleteOutline, EditOutlined, RestartAlt, Search, TuneRounded, ViewColumnRounded, VisibilityOutlined } from '@mui/icons-material';
@@ -245,9 +246,9 @@ export default function WorkApplicabilityRulesTab() {
         <colgroup>{visibleColumns.map((column) => <col key={column.id} style={{ width: column.width }} />)}</colgroup>
         <TableHead><TableRow>{visibleColumns.map((column) => <TableCell key={column.id} align={column.id === 'actions' ? 'center' : undefined} sx={{ ...headerCellSx, width: column.width, ...(column.id === 'actions' ? operationColumnSx('head') : {}) }}>{column.label}</TableCell>)}</TableRow></TableHead>
         <TableBody>
-          {rules.isLoading ? <TableRow><TableCell colSpan={visibleColumns.length} align="center" sx={{ py: 8, color: '#909399' }}>加载中...</TableCell></TableRow> : null}
-          {rules.isError ? <TableRow><TableCell colSpan={visibleColumns.length} align="center" sx={{ py: 8, color: '#c62828' }}>作业适用规则加载失败</TableCell></TableRow> : null}
-          {!rules.isLoading && !rules.isError && rows.length === 0 ? <TableRow><TableCell colSpan={visibleColumns.length} align="center" sx={{ py: 8, color: '#909399' }}>暂无适用规则</TableCell></TableRow> : null}
+          {rules.isLoading ? <TableRow><TableStateCell colSpan={visibleColumns.length} align="center" sx={{ py: 8, color: '#909399' }}>加载中...</TableStateCell></TableRow> : null}
+          {rules.isError ? <TableRow><TableStateCell colSpan={visibleColumns.length} align="center" sx={{ py: 8, color: '#c62828' }}>作业适用规则加载失败</TableStateCell></TableRow> : null}
+          {!rules.isLoading && !rules.isError && rows.length === 0 ? <TableRow><TableStateCell colSpan={visibleColumns.length} align="center" sx={{ py: 8, color: '#909399' }}>暂无适用规则</TableStateCell></TableRow> : null}
           {!rules.isLoading && !rules.isError ? rows.map((rule) => <TableRow key={rule.id} hover sx={{ '& > .MuiTableCell-root': { height: 40, py: 0.5, borderBottom: '1px solid #ebeef5' } }}>
             {visibleColumns.map((column) => renderCell(rule, column))}
           </TableRow>) : null}

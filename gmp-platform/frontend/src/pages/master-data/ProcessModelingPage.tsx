@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import {
   Fragment,
   type DragEvent as ReactDragEvent,
@@ -4079,7 +4080,7 @@ export default function ProcessModelingPage({ pageKey }: { pageKey: ProcessModel
               <TableBody>
                 {versions.length === 0 ? (
                   <TableRow sx={{ '& .MuiTableCell-root': tableBodyCellSx }}>
-                    <TableCell colSpan={visibleRouteVersionColumns.length} align="center" sx={{ color: '#909399' }}>暂无版本</TableCell>
+                    <TableStateCell colSpan={visibleRouteVersionColumns.length} align="center" sx={{ color: '#909399' }}>暂无版本</TableStateCell>
                   </TableRow>
                 ) : versions.map((versionRow) => (
                   <TableRow key={`${route.id}:${versionRow.id}`} hover onClick={() => openRouteVersionDrawer(route, versionRow)} sx={{ cursor: 'pointer', '& .MuiTableCell-root': tableBodyCellSx }}>
@@ -4761,11 +4762,11 @@ export default function ProcessModelingPage({ pageKey }: { pageKey: ProcessModel
               </TableHead>
               <TableBody sx={{ height: isTableEmptyState ? '100%' : 'auto' }}>
                 {isLoading ? (
-                  <TableRow sx={emptyTableRowSx}><TableCell colSpan={mainTableColSpan} align="center" sx={emptyTableBodyCellSx}><CircularProgress size={24} /></TableCell></TableRow>
+                  <TableRow sx={emptyTableRowSx}><TableStateCell colSpan={mainTableColSpan} align="center" sx={emptyTableBodyCellSx}><CircularProgress size={24} /></TableStateCell></TableRow>
                 ) : isError ? (
-                  <TableRow sx={emptyTableRowSx}><TableCell colSpan={mainTableColSpan} align="center" sx={emptyTableBodyCellSx}>加载失败</TableCell></TableRow>
+                  <TableRow sx={emptyTableRowSx}><TableStateCell colSpan={mainTableColSpan} align="center" sx={emptyTableBodyCellSx}>加载失败</TableStateCell></TableRow>
                 ) : displayRows.length === 0 ? (
-                  <TableRow sx={emptyTableRowSx}><TableCell colSpan={mainTableColSpan} align="center" sx={emptyTableBodyCellSx}>暂无数据</TableCell></TableRow>
+                  <TableRow sx={emptyTableRowSx}><TableStateCell colSpan={mainTableColSpan} align="center" sx={emptyTableBodyCellSx}>暂无数据</TableStateCell></TableRow>
                 ) : displayRows.map((row) => renderTableRow(row))}
               </TableBody>
             </Table>

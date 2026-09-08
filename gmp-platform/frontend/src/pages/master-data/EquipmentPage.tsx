@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import {
   useQuery,
   useMutation,
@@ -93,9 +94,9 @@ export default function EquipmentPage() {
         <Table>
           <TableHead><TableRow><TableCell>ID</TableCell><TableCell>编码</TableCell><TableCell>名称</TableCell><TableCell>描述</TableCell><TableCell align="center" sx={{ width: 96, minWidth: 96 }}>操作</TableCell></TableRow></TableHead>
           <TableBody>
-            {isLoading ? <TableRow><TableCell colSpan={5} align="center"><CircularProgress size={24} /></TableCell></TableRow>
-            : isError ? <TableRow><TableCell colSpan={5} align="center">加载失败</TableCell></TableRow>
-            : content.length === 0 ? <TableRow><TableCell colSpan={5} align="center">暂无数据</TableCell></TableRow>
+            {isLoading ? <TableRow><TableStateCell colSpan={5} align="center"><CircularProgress size={24} /></TableStateCell></TableRow>
+            : isError ? <TableRow><TableStateCell colSpan={5} align="center">加载失败</TableStateCell></TableRow>
+            : content.length === 0 ? <TableRow><TableStateCell colSpan={5} align="center">暂无数据</TableStateCell></TableRow>
             : content.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>{item.id}</TableCell><TableCell>{item.code}</TableCell><TableCell>{item.name}</TableCell><TableCell>{item.description}</TableCell>

@@ -1,5 +1,21 @@
 import client from './client';
 import type { PageResult } from '@/types/common';
+import type { SidebarModule } from '@/utils/constants';
+
+export interface MenuConfiguration {
+  modules: SidebarModule[];
+  configured: boolean;
+}
+
+export const getManagedSidebarModules = async (): Promise<MenuConfiguration> => {
+  const response = await client.get('/system/menu-configuration');
+  return unwrap<MenuConfiguration>(response);
+};
+
+export const updateManagedSidebarModules = async (modules: SidebarModule[]): Promise<MenuConfiguration> => {
+  const response = await client.put('/system/menu-configuration', { modules });
+  return unwrap<MenuConfiguration>(response);
+};
 
 export interface IconGroup {
   id: string | number;

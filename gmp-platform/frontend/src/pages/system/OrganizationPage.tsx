@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import {
   type DragEvent as ReactDragEvent,
   type MouseEvent,
@@ -2084,9 +2085,9 @@ export default function OrganizationPage() {
 	                <TableBody sx={{ height: isPersonnelTableEmptyState ? '100%' : 'auto' }}>
 	                  {isPersonnelTableEmptyState ? (
 	                    <TableRow sx={emptyTableRowSx}>
-	                      <TableCell colSpan={visiblePersonnelColumns.length} align="center" sx={emptyTableBodyCellSx}>
+	                      <TableStateCell colSpan={visiblePersonnelColumns.length} align="center" sx={emptyTableBodyCellSx}>
 	                        {selected ? '暂无人员' : '请选择左侧组织节点'}
-	                      </TableCell>
+	                      </TableStateCell>
                     </TableRow>
                   ) : pagedRows.map((row) => (
                     <TableRow

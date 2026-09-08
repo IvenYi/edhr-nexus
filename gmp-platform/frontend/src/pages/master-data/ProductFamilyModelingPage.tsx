@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -905,13 +906,13 @@ function EmptyTableRow({
 }) {
   return (
     <TableRow sx={{ height: "100%" }}>
-      <TableCell
+      <TableStateCell
         colSpan={colSpan}
         align="center"
         sx={{ height: "100%", color: error ? "#c62828" : "#909399" }}
       >
         {text}
-      </TableCell>
+      </TableStateCell>
     </TableRow>
   );
 }

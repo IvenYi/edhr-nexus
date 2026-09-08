@@ -12,6 +12,7 @@
     "verify:role-management": "node scripts/verify-role-management-layout.mjs",
     "verify:business-dictionary": "node scripts/verify-business-dictionary-page.mjs",
     "verify:menu-management": "node scripts/verify-menu-management.mjs",
+    "test:generic-ui": "node --test scripts/test-generic-ui.mjs",
     "verify:audit-log-page": "node scripts/verify-audit-log-page.mjs",
     "verify:login-log-page": "node scripts/verify-login-log-page.mjs",
     "verify:process-modeling": "node scripts/verify-process-modeling-pages.mjs",

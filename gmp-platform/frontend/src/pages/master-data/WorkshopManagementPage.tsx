@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import { type MouseEvent, type ReactNode, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -324,11 +325,11 @@ export default function WorkshopManagementPage() {
           </TableHead>
           <TableBody sx={{ height: rows.length === 0 ? '100%' : 'auto' }}>
             {workshopsQuery.isLoading ? (
-              <TableRow sx={{ height: '100%' }}><TableCell colSpan={5} align="center" sx={{ borderBottom: 'none' }}><CircularProgress size={24} /></TableCell></TableRow>
+              <TableRow sx={{ height: '100%' }}><TableStateCell colSpan={5} align="center" sx={{ borderBottom: 'none' }}><CircularProgress size={24} /></TableStateCell></TableRow>
             ) : workshopsQuery.isError ? (
-              <TableRow sx={{ height: '100%' }}><TableCell colSpan={5} align="center" sx={{ borderBottom: 'none', color: '#909399' }}>加载失败，请稍后重试</TableCell></TableRow>
+              <TableRow sx={{ height: '100%' }}><TableStateCell colSpan={5} align="center" sx={{ borderBottom: 'none', color: '#909399' }}>加载失败，请稍后重试</TableStateCell></TableRow>
             ) : rows.length === 0 ? (
-              <TableRow sx={{ height: '100%' }}><TableCell colSpan={5} align="center" sx={{ borderBottom: 'none', color: '#909399' }}>暂无车间数据</TableCell></TableRow>
+              <TableRow sx={{ height: '100%' }}><TableStateCell colSpan={5} align="center" sx={{ borderBottom: 'none', color: '#909399' }}>暂无车间数据</TableStateCell></TableRow>
             ) : rows.map((workshop) => (
               <TableRow key={workshop.id} hover onClick={() => openDetail(workshop)} sx={{ cursor: 'pointer', '& .MuiTableCell-root': bodyCellSx }}>
                 <TableCell>{workshop.code}</TableCell>

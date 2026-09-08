@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
@@ -125,11 +126,11 @@ export default function LoginLogPage() {
           </TableHead>
           <TableBody sx={{ height: isEmptyState ? '100%' : 'auto' }}>
             {isLoading ? (
-              <TableRow><TableCell colSpan={9} align="center"><CircularProgress size={24} /></TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={9} align="center"><CircularProgress size={24} /></TableStateCell></TableRow>
             ) : isError ? (
-              <TableRow><TableCell colSpan={9} align="center">加载失败</TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={9} align="center">加载失败</TableStateCell></TableRow>
             ) : content.length === 0 ? (
-              <TableRow><TableCell colSpan={9} align="center">暂无登录日志</TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={9} align="center">暂无登录日志</TableStateCell></TableRow>
             ) : (
               content.map((item: LoginLogItem) => (
                 <TableRow key={item.id} hover>

@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import {
   useEffect,
   useMemo,
@@ -425,7 +426,7 @@ export default function ProductModelingWorkspacePage() {
               {['版本', '生产模式', '生产方式', '工艺路线版本', '批记录模板版本', '版本状态', '生效时间', '失效时间', '更新时间', '操作'].map((label) => <TableCell key={label} sx={{ bgcolor: '#f5f7fa', color: '#606266', fontWeight: 600, whiteSpace: 'nowrap' }}>{label}</TableCell>)}
             </TableRow></TableHead>
             <TableBody>
-              {versions.length === 0 ? <TableRow><TableCell colSpan={10} align="center" sx={{ py: 8, color: '#909399' }}>尚未创建制程配置版本</TableCell></TableRow> : versions.map((version) => {
+              {versions.length === 0 ? <TableRow><TableStateCell colSpan={10} align="center" sx={{ py: 8, color: '#909399' }}>尚未创建制程配置版本</TableStateCell></TableRow> : versions.map((version) => {
                 const meta = getRdoVersionStatusMeta(version.status);
                 return <TableRow hover key={version.id}>
                   <TableCell sx={{ fontWeight: 500 }}>{version.version}</TableCell>

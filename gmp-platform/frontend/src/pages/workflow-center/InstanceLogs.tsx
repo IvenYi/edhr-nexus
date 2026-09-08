@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { useState } from 'react';
@@ -58,11 +59,11 @@ export default function InstanceLogs() {
           </TableHead>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={7} align="center"><CircularProgress size={24} /></TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={7} align="center"><CircularProgress size={24} /></TableStateCell></TableRow>
             ) : isError ? (
-              <TableRow><TableCell colSpan={7} align="center">加载失败</TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={7} align="center">加载失败</TableStateCell></TableRow>
             ) : content.length === 0 ? (
-              <TableRow><TableCell colSpan={7} align="center">暂无日志</TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={7} align="center">暂无日志</TableStateCell></TableRow>
             ) : (
               content.map((log) => (
                 <TableRow key={log.id}>

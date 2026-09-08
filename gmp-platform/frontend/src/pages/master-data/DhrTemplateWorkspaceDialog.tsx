@@ -40,6 +40,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import TableStateCell from '@/components/TableStateCell';
 import AppDialog from "@/components/AppDialog";
 import StatusBadge from "@/components/StatusBadge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -2259,15 +2260,15 @@ export default function DhrTemplateWorkspaceDialog({
                 <TableBody>
                   {formOptionsQuery.isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                      <TableStateCell colSpan={5} align="center" sx={{ py: 6 }}>
                         <CircularProgress size={22} />
-                      </TableCell>
+                      </TableStateCell>
                     </TableRow>
                   ) : formOptionsQuery.isError ? (
                     <TableRow>
-                      <TableCell colSpan={5} sx={{ p: 2 }}>
+                      <TableStateCell colSpan={5} sx={{ p: 2 }}>
                         <Alert severity="error">表单列表加载失败</Alert>
-                      </TableCell>
+                      </TableStateCell>
                     </TableRow>
                   ) : visibleFormOptions.length ? (
                     visibleFormOptions.flatMap((option) => {
@@ -2485,13 +2486,13 @@ export default function DhrTemplateWorkspaceDialog({
                     })
                   ) : (
                     <TableRow>
-                      <TableCell
+                      <TableStateCell
                         colSpan={5}
                         align="center"
                         sx={{ py: 6, color: "#909399" }}
                       >
                         暂无匹配表单
-                      </TableCell>
+                      </TableStateCell>
                     </TableRow>
                   )}
                 </TableBody>

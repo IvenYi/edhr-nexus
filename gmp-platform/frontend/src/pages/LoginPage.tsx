@@ -61,7 +61,7 @@ function storeSessionPolicy(payload: Record<string, unknown>) {
 }
 
 export default function LoginPage() {
-  const { branding } = useSystemBranding();
+  const { branding, isLoading: isBrandingLoading, isBrandingUnavailable, isFetching, retryBranding } = useSystemBranding({ verifyOnMount: true });
   const systemName = branding.systemName || DEFAULT_SYSTEM_NAME;
   const loginTitle = systemName === DEFAULT_SYSTEM_NAME ? DEFAULT_LOGIN_TITLE : `登录 ${systemName}`;
   const loginSubtitle = branding.loginSubtitle || DEFAULT_SYSTEM_BRANDING.loginSubtitle;
@@ -93,6 +93,26 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (isBrandingLoading || isBrandingUnavailable) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#F0F2F5', p: 2 }}>
+        <Card sx={{ width: 400, maxWidth: '100%', p: { xs: 3, sm: 4 }, textAlign: 'center' }}>
+          <Typography variant="h5" fontWeight={600} gutterBottom role="status">
+            {isBrandingLoading ? '正在连接系统服务' : '系统服务暂不可用'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: isBrandingUnavailable ? 3 : 0 }}>
+            {isBrandingLoading ? '正在获取系统配置，请稍候。' : '暂时无法获取系统配置，请稍后重新连接。'}
+          </Typography>
+          {isBrandingUnavailable && (
+            <Button variant="contained" fullWidth disabled={isFetching} onClick={() => void retryBranding()}>
+              {isFetching ? '正在重新连接...' : '重新连接'}
+            </Button>
+          )}
+        </Card>
+      </Box>
+    );
+  }
 
   return (
     <Box

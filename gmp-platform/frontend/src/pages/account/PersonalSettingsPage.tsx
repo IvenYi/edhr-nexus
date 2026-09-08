@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -2263,17 +2264,17 @@ function PersonalLogPanel({
           <TableBody sx={{ height: showEmptyState ? '100%' : 'auto' }}>
             {loading ? (
               <TableRow sx={{ height: '100%' }}>
-                <TableCell colSpan={colSpan} align="center" sx={personalEmptyTableCellSx}>
+                <TableStateCell colSpan={colSpan} align="center" sx={personalEmptyTableCellSx}>
                   <CircularProgress size={24} />
-                </TableCell>
+                </TableStateCell>
               </TableRow>
             ) : error ? (
               <TableRow sx={{ height: '100%' }}>
-                <TableCell colSpan={colSpan} align="center" sx={personalEmptyTableCellSx}>加载失败</TableCell>
+                <TableStateCell colSpan={colSpan} align="center" sx={personalEmptyTableCellSx}>加载失败</TableStateCell>
               </TableRow>
             ) : isEmpty ? (
               <TableRow sx={{ height: '100%' }}>
-                <TableCell colSpan={colSpan} align="center" sx={personalEmptyTableCellSx}>{emptyText}</TableCell>
+                <TableStateCell colSpan={colSpan} align="center" sx={personalEmptyTableCellSx}>{emptyText}</TableStateCell>
               </TableRow>
             ) : (
               children

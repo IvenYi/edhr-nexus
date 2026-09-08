@@ -47,6 +47,7 @@ import AppDialog from "@/components/AppDialog";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import StatusBadge from "@/components/StatusBadge";
 import { useSnackbar } from "@/components/SnackbarProvider";
+import TableStateCell from '@/components/TableStateCell';
 import { getAuditLogs, type AuditLogItem } from "@/api/audit";
 import {
   createWorkTemplate,
@@ -720,13 +721,13 @@ function WorkTemplateDetailDrawer({
 function EmptyTableRow({ colSpan, text }: { colSpan: number; text: string }) {
   return (
     <TableRow>
-      <TableCell
+      <TableStateCell
         colSpan={colSpan}
         align="center"
         sx={{ py: 8, color: "#909399" }}
       >
         {text}
-      </TableCell>
+      </TableStateCell>
     </TableRow>
   );
 }

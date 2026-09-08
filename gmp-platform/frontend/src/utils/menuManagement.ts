@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getManagedSidebarModules, updateManagedSidebarModules } from '@/api/system';
 import { SIDEBAR_MODULES, type SidebarMenu, type SidebarModule, type SidebarSubMenu } from '@/utils/constants';
 
 export const MENU_MANAGEMENT_STORAGE_KEY = 'edhr:managed-sidebar-modules';
@@ -195,9 +196,18 @@ export function normalizeManagedSidebarModules(modules: SidebarModule[]): Sideba
 
 export function ensureRequiredMenus(modules: SidebarModule[]): SidebarModule[] {
   const nextModules = cloneSidebarModules(removeRetiredSidebarModules(modules));
+  const menuIcons = new Map(nextModules.flatMap((module) => module.menus
+    .filter((menu) => menu.icon)
+    .map((menu) => [`${module.id}:${menu.path || menu.label}`, menu.icon] as const)));
   ensureRequiredProcessModeling(nextModules);
   ensureRequiredProductionMenus(nextModules);
   ensureRequiredSystemMenus(nextModules);
+  for (const module of nextModules) {
+    for (const menu of module.menus) {
+      const icon = menuIcons.get(`${module.id}:${menu.path || menu.label}`);
+      if (icon) menu.icon = icon;
+    }
+  }
   return nextModules;
 }
 
@@ -332,7 +342,11 @@ function ensureRequiredSecurityManagement(systemModule: SidebarModule) {
   delete securityManagement.path;
 }
 
+let cachedModules: SidebarModule[] | undefined;
+let cacheRevision = 0;
+
 export function loadManagedSidebarModules(): SidebarModule[] {
+  if (cachedModules) return cloneSidebarModules(cachedModules);
   if (typeof window === 'undefined') return ensureRequiredSystemMenus(ensureRequiredMenus(SIDEBAR_MODULES));
 
   try {
@@ -345,22 +359,38 @@ export function loadManagedSidebarModules(): SidebarModule[] {
   }
 }
 
-export function saveManagedSidebarModules(modules: SidebarModule[]): SidebarModule[] {
-  const normalized = ensureRequiredSystemMenus(ensureRequiredMenus(normalizeManagedSidebarModules(modules)));
+function cacheManagedSidebarModules(modules: SidebarModule[]): SidebarModule[] {
+  cachedModules = cloneSidebarModules(modules);
+  cacheRevision += 1;
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem(MENU_MANAGEMENT_STORAGE_KEY, JSON.stringify(normalized));
+    try {
+      window.localStorage.setItem(MENU_MANAGEMENT_STORAGE_KEY, JSON.stringify(modules));
+    } catch {
+      // A disabled browser cache must not turn a successful server save into a failure.
+    }
     window.dispatchEvent(new CustomEvent(MENU_MANAGEMENT_EVENT));
   }
-  return normalized;
+  return cloneSidebarModules(modules);
 }
 
-export function resetManagedSidebarModules(): SidebarModule[] {
-  const defaults = ensureRequiredMenus(SIDEBAR_MODULES);
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(MENU_MANAGEMENT_STORAGE_KEY);
-    window.dispatchEvent(new CustomEvent(MENU_MANAGEMENT_EVENT));
-  }
-  return defaults;
+export async function refreshManagedSidebarModules(): Promise<SidebarModule[]> {
+  const revision = cacheRevision;
+  const response = await getManagedSidebarModules();
+  // A read started before a completed save must not restore the older configuration.
+  if (revision !== cacheRevision) return loadManagedSidebarModules();
+  const modules = response.configured
+    ? normalizeManagedSidebarModules(response.modules)
+    : loadManagedSidebarModules();
+  return cacheManagedSidebarModules(modules);
+}
+
+export async function saveManagedSidebarModules(modules: SidebarModule[]): Promise<SidebarModule[]> {
+  const response = await updateManagedSidebarModules(normalizeManagedSidebarModules(modules));
+  return cacheManagedSidebarModules(normalizeManagedSidebarModules(response.modules));
+}
+
+export async function resetManagedSidebarModules(): Promise<SidebarModule[]> {
+  return saveManagedSidebarModules(ensureRequiredMenus(SIDEBAR_MODULES));
 }
 
 export function useManagedSidebarModules(): SidebarModule[] {
@@ -369,14 +399,22 @@ export function useManagedSidebarModules(): SidebarModule[] {
   useEffect(() => {
     const refreshModules = () => setModules(loadManagedSidebarModules());
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === MENU_MANAGEMENT_STORAGE_KEY) refreshModules();
+      if (event.key === MENU_MANAGEMENT_STORAGE_KEY || event.key === null) {
+        cachedModules = undefined;
+        cacheRevision += 1;
+        refreshModules();
+      }
     };
+    const refreshFromServer = () => { void refreshManagedSidebarModules().catch(() => undefined); };
 
+    refreshFromServer();
     window.addEventListener(MENU_MANAGEMENT_EVENT, refreshModules);
     window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', refreshFromServer);
     return () => {
       window.removeEventListener(MENU_MANAGEMENT_EVENT, refreshModules);
       window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', refreshFromServer);
     };
   }, []);
 

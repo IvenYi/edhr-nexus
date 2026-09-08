@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import {
   useQuery,
   useMutation,
@@ -101,11 +102,11 @@ export default function UnitPage() {
           </TableHead>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={5} align="center"><CircularProgress size={24} /></TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={5} align="center"><CircularProgress size={24} /></TableStateCell></TableRow>
             ) : isError ? (
-              <TableRow><TableCell colSpan={5} align="center">加载失败</TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={5} align="center">加载失败</TableStateCell></TableRow>
             ) : content.length === 0 ? (
-              <TableRow><TableCell colSpan={5} align="center">暂无数据</TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={5} align="center">暂无数据</TableStateCell></TableRow>
             ) : content.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>{item.id}</TableCell><TableCell>{item.code}</TableCell><TableCell>{item.name}</TableCell>

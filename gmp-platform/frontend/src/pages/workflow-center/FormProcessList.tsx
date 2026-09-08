@@ -56,6 +56,7 @@ import {
 import type { PageResult } from "@/types/common";
 import { getAuditLogs, type AuditLogItem } from "@/api/audit";
 import StatusBadge from "@/components/StatusBadge";
+import TableStateCell from '@/components/TableStateCell';
 
 type Process = {
   id: FormProcessId;
@@ -914,33 +915,33 @@ export default function FormProcessList() {
             <TableBody>
               {query.isPending ? (
                 <TableRow>
-                  <TableCell
+                  <TableStateCell
                     colSpan={6}
                     align="center"
                     sx={{ ...cellSx, py: 5, color: "#909399" }}
                   >
                     正在加载...
-                  </TableCell>
+                  </TableStateCell>
                 </TableRow>
               ) : query.isError ? (
                 <TableRow>
-                  <TableCell
+                  <TableStateCell
                     colSpan={6}
                     align="center"
                     sx={{ ...cellSx, py: 5, color: "#c62828" }}
                   >
                     加载失败，请重试
-                  </TableCell>
+                  </TableStateCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell
+                  <TableStateCell
                     colSpan={6}
                     align="center"
                     sx={{ ...cellSx, py: 5, color: "#909399" }}
                   >
                     暂无数据
-                  </TableCell>
+                  </TableStateCell>
                 </TableRow>
               ) : (
                 rows.map((row) => (

@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import {
   type DragEvent as ReactDragEvent,
   type MouseEvent,
@@ -1698,21 +1699,21 @@ export default function RolePage() {
               <TableBody sx={{ height: isRoleTableEmptyState ? '100%' : 'auto' }}>
                 {isLoading ? (
                   <TableRow sx={emptyTableRowSx}>
-                    <TableCell colSpan={visibleRoleColumns.length} align="center" sx={emptyTableBodyCellSx}>
+                    <TableStateCell colSpan={visibleRoleColumns.length} align="center" sx={emptyTableBodyCellSx}>
                       <CircularProgress size={24} />
-                    </TableCell>
+                    </TableStateCell>
                   </TableRow>
                 ) : isError ? (
                   <TableRow sx={emptyTableRowSx}>
-                    <TableCell colSpan={visibleRoleColumns.length} align="center" sx={emptyTableBodyCellSx}>
+                    <TableStateCell colSpan={visibleRoleColumns.length} align="center" sx={emptyTableBodyCellSx}>
                       加载失败
-                    </TableCell>
+                    </TableStateCell>
                   </TableRow>
                 ) : pagedRows.length === 0 ? (
                   <TableRow sx={emptyTableRowSx}>
-                    <TableCell colSpan={visibleRoleColumns.length} align="center" sx={emptyTableBodyCellSx}>
+                    <TableStateCell colSpan={visibleRoleColumns.length} align="center" sx={emptyTableBodyCellSx}>
                       暂无数据
-                    </TableCell>
+                    </TableStateCell>
                   </TableRow>
                 ) : pagedRows.map((row) => (
                   <TableRow

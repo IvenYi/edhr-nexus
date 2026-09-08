@@ -58,23 +58,38 @@ export function applySystemBranding(settings: Partial<SystemSettings> = DEFAULT_
 
   if (faviconUrl) {
     favicon.href = faviconUrl;
+  } else {
+    favicon.removeAttribute('href');
   }
 }
 
-export function useSystemBranding() {
+export function useSystemBranding({ verifyOnMount = false } = {}) {
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: SYSTEM_BRANDING_QUERY_KEY,
     queryFn: getPublicSystemSettings,
     staleTime: 5 * 60 * 1000,
     retry: 1,
+    refetchOnMount: verifyOnMount ? 'always' : true,
   });
+
+  const isLoading = query.isLoading || (verifyOnMount && !query.isFetchedAfterMount && query.isFetching);
 
   const branding = useMemo<SystemSettings>(() => normalizeSystemBranding(query.data), [query.data]);
 
   useEffect(() => {
+    if (isLoading) {
+      document.title = '正在连接系统服务';
+      document.querySelector('link[rel="icon"]')?.removeAttribute('href');
+      return;
+    }
+    if (query.isError) {
+      document.title = '系统服务暂不可用';
+      document.querySelector('link[rel="icon"]')?.removeAttribute('href');
+      return;
+    }
     applySystemBranding(branding);
-  }, [branding]);
+  }, [branding, query.isError, isLoading]);
 
   const refreshBranding = useCallback(async (settings?: SystemSettings) => {
     if (settings) {
@@ -87,8 +102,11 @@ export function useSystemBranding() {
 
   return {
     branding,
-    isLoading: query.isLoading,
+    isLoading,
     isError: query.isError,
+    isBrandingUnavailable: query.isError,
+    isFetching: query.isFetching,
+    retryBranding: query.refetch,
     refreshBranding,
   };
 }

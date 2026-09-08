@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import {
   useQuery,
   useMutation,
@@ -90,7 +91,7 @@ export default function ReviewTemplateList() {
           </TableHead>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={6}>加载中...</TableCell></TableRow>
+              <TableRow><TableStateCell colSpan={6}>加载中...</TableStateCell></TableRow>
             ) : (
               data?.content?.map((t) => (
                 <TableRow key={t.id}>

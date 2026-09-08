@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -272,9 +273,9 @@ export default function BatchManagementPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {batches.isLoading && <TableRow><TableCell colSpan={12} align="center" sx={{ height: 240 }}><CircularProgress size={24} /></TableCell></TableRow>}
-              {batches.isError && <TableRow><TableCell colSpan={12} align="center" sx={{ height: 240, color: '#c62828' }}>批次数据加载失败</TableCell></TableRow>}
-              {!batches.isLoading && !batches.isError && rows.length === 0 && <TableRow><TableCell colSpan={12} align="center" sx={{ height: 240, color: '#909399' }}>暂无批次数据</TableCell></TableRow>}
+              {batches.isLoading && <TableRow><TableStateCell colSpan={12} align="center" sx={{ height: 240 }}><CircularProgress size={24} /></TableStateCell></TableRow>}
+              {batches.isError && <TableRow><TableStateCell colSpan={12} align="center" sx={{ height: 240, color: '#c62828' }}>批次数据加载失败</TableStateCell></TableRow>}
+              {!batches.isLoading && !batches.isError && rows.length === 0 && <TableRow><TableStateCell colSpan={12} align="center" sx={{ height: 240, color: '#909399' }}>暂无批次数据</TableStateCell></TableRow>}
               {!batches.isLoading && !batches.isError && rows.map((row) => (
                 <TableRow key={row.id} hover tabIndex={0} onClick={() => { setDetail(row); setDetailTab(0); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { setDetail(row); setDetailTab(0); } }} sx={{ ...tableRowSx, cursor: 'pointer' }}>
                   <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }} title={row.objectNo}>{row.objectNo}</TableCell>

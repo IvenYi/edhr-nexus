@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import {
   type DragEvent as ReactDragEvent,
   type MouseEvent,
@@ -1100,11 +1101,11 @@ export default function BusinessDictionaryPage() {
               {renderTableHeader(visibleDictionaryColumns, dictionaryResolvedWidths, (event, column) => beginColumnResize(event, column, (id) => dictionaryResolvedWidths[id], setDictionaryColumnWidths))}
               <TableBody sx={{ height: dictionaryEmptyState ? '100%' : 'auto' }}>
                 {dictionariesQuery.isLoading ? (
-                  <TableRow sx={emptyTableRowSx}><TableCell colSpan={visibleDictionaryColumns.length} align="center" sx={emptyTableBodyCellSx}><CircularProgress size={24} /></TableCell></TableRow>
+                  <TableRow sx={emptyTableRowSx}><TableStateCell colSpan={visibleDictionaryColumns.length} align="center" sx={emptyTableBodyCellSx}><CircularProgress size={24} /></TableStateCell></TableRow>
                 ) : dictionariesQuery.isError ? (
-                  <TableRow sx={emptyTableRowSx}><TableCell colSpan={visibleDictionaryColumns.length} align="center" sx={emptyTableBodyCellSx}>加载失败</TableCell></TableRow>
+                  <TableRow sx={emptyTableRowSx}><TableStateCell colSpan={visibleDictionaryColumns.length} align="center" sx={emptyTableBodyCellSx}>加载失败</TableStateCell></TableRow>
                 ) : dictionaries.length === 0 ? (
-                  <TableRow sx={emptyTableRowSx}><TableCell colSpan={visibleDictionaryColumns.length} align="center" sx={emptyTableBodyCellSx}>暂无数据</TableCell></TableRow>
+                  <TableRow sx={emptyTableRowSx}><TableStateCell colSpan={visibleDictionaryColumns.length} align="center" sx={emptyTableBodyCellSx}>暂无数据</TableStateCell></TableRow>
                 ) : dictionaries.map((dictionary) => (
                   <TableRow
                     key={dictionary.id}
@@ -1173,13 +1174,13 @@ export default function BusinessDictionaryPage() {
               {renderTableHeader(visibleItemColumns, itemResolvedWidths, (event, column) => beginColumnResize(event, column, (id) => itemResolvedWidths[id], setItemColumnWidths))}
               <TableBody sx={{ height: itemEmptyState ? '100%' : 'auto' }}>
                 {!selectedDictionary ? (
-                  <TableRow sx={emptyTableRowSx}><TableCell colSpan={visibleItemColumns.length} align="center" sx={emptyTableBodyCellSx}>请选择业务字典</TableCell></TableRow>
+                  <TableRow sx={emptyTableRowSx}><TableStateCell colSpan={visibleItemColumns.length} align="center" sx={emptyTableBodyCellSx}>请选择业务字典</TableStateCell></TableRow>
                 ) : itemsQuery.isLoading ? (
-                  <TableRow sx={emptyTableRowSx}><TableCell colSpan={visibleItemColumns.length} align="center" sx={emptyTableBodyCellSx}><CircularProgress size={24} /></TableCell></TableRow>
+                  <TableRow sx={emptyTableRowSx}><TableStateCell colSpan={visibleItemColumns.length} align="center" sx={emptyTableBodyCellSx}><CircularProgress size={24} /></TableStateCell></TableRow>
                 ) : itemsQuery.isError ? (
-                  <TableRow sx={emptyTableRowSx}><TableCell colSpan={visibleItemColumns.length} align="center" sx={emptyTableBodyCellSx}>加载失败</TableCell></TableRow>
+                  <TableRow sx={emptyTableRowSx}><TableStateCell colSpan={visibleItemColumns.length} align="center" sx={emptyTableBodyCellSx}>加载失败</TableStateCell></TableRow>
                 ) : items.length === 0 ? (
-                  <TableRow sx={emptyTableRowSx}><TableCell colSpan={visibleItemColumns.length} align="center" sx={emptyTableBodyCellSx}>暂无数据</TableCell></TableRow>
+                  <TableRow sx={emptyTableRowSx}><TableStateCell colSpan={visibleItemColumns.length} align="center" sx={emptyTableBodyCellSx}>暂无数据</TableStateCell></TableRow>
                 ) : items.map((item) => (
                   <TableRow
                     key={item.id}

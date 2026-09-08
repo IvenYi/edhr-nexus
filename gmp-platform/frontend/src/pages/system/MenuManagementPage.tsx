@@ -36,6 +36,7 @@ import {
 import {
   MAX_MENU_CHILDREN_DEPTH,
   loadManagedSidebarModules,
+  refreshManagedSidebarModules,
   resetManagedSidebarModules,
   saveManagedSidebarModules,
 } from '@/utils/menuManagement';
@@ -316,6 +317,10 @@ function validateModules(modules: SidebarModule[]): string {
 
 export default function MenuManagementPage() {
   const [modules, setModules] = useState<SidebarModule[]>(() => loadManagedSidebarModules());
+  const [configurationLoading, setConfigurationLoading] = useState(true);
+  const [configurationError, setConfigurationError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+  const [saving, setSaving] = useState(false);
   const [selectedModuleId, setSelectedModuleId] = useState('system');
   const [selectedIconGroupId, setSelectedIconGroupId] = useState<string | 'ALL'>('ALL');
   const [iconKeyword, setIconKeyword] = useState('');
@@ -331,6 +336,19 @@ export default function MenuManagementPage() {
     queryKey: ['system', 'menu-icon-picker-groups'],
     queryFn: getIconGroups,
   });
+
+  useEffect(() => {
+    let active = true;
+    setConfigurationLoading(true);
+    setConfigurationError('');
+    refreshManagedSidebarModules()
+      .then((loadedModules) => { if (active) setModules(loadedModules); })
+      .catch((error: unknown) => {
+        if (active) setConfigurationError(error instanceof Error ? error.message : '菜单配置加载失败');
+      })
+      .finally(() => { if (active) setConfigurationLoading(false); });
+    return () => { active = false; };
+  }, [reloadKey]);
 
   const iconsQuery = useQuery({
     queryKey: ['system', 'menu-icon-picker', selectedIconGroupId, iconKeyword, iconPickerPage, iconPickerPageSize],
@@ -482,29 +500,59 @@ export default function MenuManagementPage() {
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving) return;
     const validationError = validateModules(modules);
     if (validationError) {
       showSnackbar(validationError, 'error');
       return;
     }
 
-    const savedModules = saveManagedSidebarModules(modules);
-    setModules(savedModules);
-    showSnackbar('菜单配置已保存', 'success');
+    setSaving(true);
+    try {
+      const savedModules = await saveManagedSidebarModules(modules);
+      setModules(savedModules);
+      showSnackbar('菜单配置已保存', 'success');
+    } catch (error: unknown) {
+      showSnackbar(error instanceof Error ? error.message : '菜单配置保存失败', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleReset = () => {
-    const defaultModules = resetManagedSidebarModules();
-    setModules(defaultModules);
-    setSelectedModuleId(defaultModules.find((module) => module.id === 'system')?.id ?? defaultModules[0]?.id ?? '');
-    showSnackbar('菜单配置已恢复默认', 'success');
+  const handleReset = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const defaultModules = await resetManagedSidebarModules();
+      setModules(defaultModules);
+      setSelectedModuleId(defaultModules.find((module) => module.id === 'system')?.id ?? defaultModules[0]?.id ?? '');
+      showSnackbar('菜单配置已恢复默认并保存', 'success');
+    } catch (error: unknown) {
+      showSnackbar(error instanceof Error ? error.message : '恢复默认失败', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (configurationLoading) {
+    return <Box sx={{ p: 4, textAlign: 'center' }} role="status">正在读取菜单配置...</Box>;
+  }
+  if (configurationError) {
+    return <Alert severity="error" action={<Button onClick={() => setReloadKey((key) => key + 1)}>重新读取</Button>}>菜单配置加载失败：{configurationError}</Alert>;
+  }
 
   return (
     <Box
+      component="fieldset"
+      disabled={saving}
+      aria-busy={saving}
       data-menu-management-page
       sx={{
+        border: 0,
+        p: 0,
+        m: 0,
+        minWidth: 0,
         display: 'grid',
         gridTemplateColumns: { xs: '1fr', lg: '260px minmax(0, 1fr)' },
         gridTemplateRows: { xs: '220px minmax(0, 1fr)', lg: 'minmax(0, 1fr)' },
@@ -571,7 +619,7 @@ export default function MenuManagementPage() {
           </Stack>
           <Stack direction="row" spacing={1}>
             <Button variant="outlined" startIcon={<RestartAlt />} onClick={handleReset}>重置</Button>
-            <Button variant="contained" startIcon={<Save />} onClick={handleSave}>保存</Button>
+            <Button variant="contained" startIcon={<Save />} onClick={handleSave}>{saving ? '保存中...' : '保存'}</Button>
           </Stack>
         </Stack>
 

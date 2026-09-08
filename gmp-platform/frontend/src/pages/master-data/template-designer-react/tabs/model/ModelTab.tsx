@@ -1,3 +1,4 @@
+import TableStateCell from '@/components/TableStateCell';
 import {
   type DragEvent,
   type MouseEvent as ReactMouseEvent,
@@ -1160,9 +1161,9 @@ export default function ModelTab({
                     ))
                   ) : (
                     <TableRow sx={emptyTableRowSx}>
-                      <TableCell colSpan={visibleReportColumns.length} align="center" sx={emptyTableBodyCellSx}>
+                      <TableStateCell colSpan={visibleReportColumns.length} align="center" sx={emptyTableBodyCellSx}>
                         暂无数据
-                      </TableCell>
+                      </TableStateCell>
                     </TableRow>
                   )}
                 </TableBody>
